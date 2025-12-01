@@ -7,6 +7,88 @@ Rails.application.routes.draw do
   match "/api/v1/messages/message" => "legacy_api/messages#message", via: [:get, :post, :patch, :put]
   match "/api/v1/messages/deliveries" => "legacy_api/messages#deliveries", via: [:get, :post, :patch, :put]
 
+  # Management API v2 Routes
+  namespace :management_api, path: "api/v2" do
+    # System endpoints
+    get "system/info" => "system#info"
+    get "system/health" => "system#health"
+    get "system/stats" => "system#stats"
+    get "system/ip_pools" => "system#ip_pools"
+    post "system/ip_pools" => "system#create_ip_pool"
+    delete "system/ip_pools/:id" => "system#destroy_ip_pool"
+    post "system/ip_pools/:id/ip_addresses" => "system#create_ip_address"
+    delete "system/ip_addresses/:id" => "system#destroy_ip_address"
+
+    # Users (global)
+    resources :users do
+      member do
+        post :make_admin
+        post :revoke_admin
+      end
+    end
+
+    # Servers (global list)
+    get "servers" => "servers#index_all"
+
+    # Organizations
+    resources :organizations do
+      member do
+        post :suspend
+        post :unsuspend
+      end
+
+      # Organization users
+      resources :users, controller: "organization_users", only: [:index, :show, :create, :update, :destroy]
+      post "transfer_ownership" => "organization_users#transfer_ownership"
+
+      # Organization domains
+      resources :domains, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :verify
+          post :check_dns
+        end
+      end
+
+      # Servers within organization
+      resources :servers do
+        member do
+          post :suspend
+          post :unsuspend
+          get :stats
+        end
+
+        # Server domains
+        resources :domains, only: [:index, :show, :create, :update, :destroy] do
+          member do
+            post :verify
+            post :check_dns
+          end
+        end
+
+        # Credentials
+        resources :credentials
+
+        # Routes
+        resources :routes
+
+        # Webhooks
+        resources :webhooks
+
+        # Endpoints
+        get "endpoints" => "endpoints#index"
+        post "endpoints/http" => "endpoints#create_http"
+        patch "endpoints/http/:id" => "endpoints#update_http"
+        delete "endpoints/http/:id" => "endpoints#destroy_http"
+        post "endpoints/smtp" => "endpoints#create_smtp"
+        patch "endpoints/smtp/:id" => "endpoints#update_smtp"
+        delete "endpoints/smtp/:id" => "endpoints#destroy_smtp"
+        post "endpoints/address" => "endpoints#create_address"
+        patch "endpoints/address/:id" => "endpoints#update_address"
+        delete "endpoints/address/:id" => "endpoints#destroy_address"
+      end
+    end
+  end
+
   scope "org/:org_permalink", as: "organization" do
     resources :domains, only: [:index, :new, :create, :destroy] do
       match :verify, on: :member, via: [:get, :post]
