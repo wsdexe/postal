@@ -69,14 +69,13 @@ jobs:
       - name: Verify image push
         run: |
           echo "Image digest: ${{ steps.build.outputs.digest }}"
-          echo "Image metadata: ${{ steps.build.outputs.metadata }}"
           echo "Image should be available at:"
           echo "${{ env.REGISTRY }}/${{ github.repository }}:latest"
           echo "Checking if image was pushed..."
           if [ -n "${{ steps.build.outputs.digest }}" ]; then
-            echo "✓ Image was pushed successfully!"
+            echo "Image was pushed successfully!"
             echo "Digest: ${{ steps.build.outputs.digest }}"
           else
-            echo "✗ Image push may have failed - no digest"
+            echo "Image push may have failed - no digest"
             exit 1
           fi
