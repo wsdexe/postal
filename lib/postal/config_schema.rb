@@ -519,6 +519,12 @@ module Postal
       end
     end
 
+    group :management_api do
+      string :api_key do
+        description "The API key for authenticating with the Management API"
+      end
+    end
+
     group :oidc do
       boolean :enabled do
         description "Enable OIDC authentication"

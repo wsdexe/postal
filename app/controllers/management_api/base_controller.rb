@@ -46,8 +46,9 @@ module ManagementAPI
         return
       end
 
-      # Check against environment variable first
-      if ENV["MANAGEMENT_API_KEY"].present? && ActiveSupport::SecurityUtils.secure_compare(key, ENV["MANAGEMENT_API_KEY"])
+      # Check against config file or environment variable
+      configured_key = Postal::Config.management_api.api_key.presence || ENV["MANAGEMENT_API_KEY"]
+      if configured_key.present? && ActiveSupport::SecurityUtils.secure_compare(key, configured_key)
         @current_user = nil # System-level access
         return
       end
