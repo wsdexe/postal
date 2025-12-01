@@ -109,9 +109,7 @@ module ManagementAPI
     private
 
     def find_user
-      @user = User.find_by!(uuid: params[:id]) || User.find(params[:id])
-    rescue ActiveRecord::RecordNotFound
-      @user = User.find(params[:id])
+      @user = User.find_by(uuid: params[:id]) || User.find(params[:id])
     end
 
     def user_params

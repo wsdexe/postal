@@ -109,17 +109,12 @@ module ManagementAPI
     private
 
     def find_organization
-      @organization = Organization.present.find_by!(permalink: params[:organization_id]) ||
+      @organization = Organization.present.find_by(permalink: params[:organization_id]) ||
                       Organization.present.find(params[:organization_id])
-    rescue ActiveRecord::RecordNotFound
-      @organization = Organization.present.find(params[:organization_id])
     end
 
     def find_organization_user
-      user = User.find_by!(uuid: params[:id]) || User.find(params[:id])
-      @organization_user = @organization.organization_users.find_by!(user: user)
-    rescue ActiveRecord::RecordNotFound
-      user = User.find(params[:id])
+      user = User.find_by(uuid: params[:id]) || User.find(params[:id])
       @organization_user = @organization.organization_users.find_by!(user: user)
     end
 

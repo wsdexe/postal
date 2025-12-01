@@ -166,11 +166,11 @@ module ManagementAPI
     end
 
     def ip_pool_params
-      params.permit(:name, :default)
+      api_params.slice("name", "default").symbolize_keys
     end
 
     def ip_address_params
-      params.permit(:ipv4, :ipv6, :hostname, :priority)
+      api_params.slice("ipv4", "ipv6", "hostname", "priority").symbolize_keys
     end
   end
 end

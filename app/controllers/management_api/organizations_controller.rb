@@ -107,10 +107,8 @@ module ManagementAPI
     private
 
     def find_organization
-      @organization = Organization.present.find_by!(permalink: params[:id]) ||
+      @organization = Organization.present.find_by(permalink: params[:id]) ||
                       Organization.present.find(params[:id])
-    rescue ActiveRecord::RecordNotFound
-      @organization = Organization.present.find(params[:id])
     end
 
     def find_owner

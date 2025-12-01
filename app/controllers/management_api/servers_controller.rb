@@ -132,17 +132,13 @@ module ManagementAPI
     private
 
     def find_organization
-      @organization = Organization.present.find_by!(permalink: params[:organization_id]) ||
+      @organization = Organization.present.find_by(permalink: params[:organization_id]) ||
                       Organization.present.find(params[:organization_id])
-    rescue ActiveRecord::RecordNotFound
-      @organization = Organization.present.find(params[:organization_id])
     end
 
     def find_server
-      @server = @organization.servers.present.find_by!(permalink: params[:id]) ||
+      @server = @organization.servers.present.find_by(permalink: params[:id]) ||
                 @organization.servers.present.find(params[:id])
-    rescue ActiveRecord::RecordNotFound
-      @server = @organization.servers.present.find(params[:id])
     end
 
     def server_params
