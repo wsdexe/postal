@@ -29,8 +29,9 @@ module ManagementAPI
 
       if credential.save
         render_success(
-          credential: serialize_credential(credential)
-        ), status: :created
+          credential: serialize_credential(credential),
+          status: :created
+        )
       else
         render_error "ValidationError",
                      message: "Failed to create credential",
