@@ -46,8 +46,9 @@ module ManagementAPI
 
       if server.save
         render_success(
-          server: serialize_server(server)
-        ), status: :created
+          server: serialize_server(server),
+          status: :created
+        )
       else
         render_error "ValidationError",
                      message: "Failed to create server",

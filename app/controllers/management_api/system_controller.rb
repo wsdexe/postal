@@ -99,8 +99,9 @@ module ManagementAPI
             uuid: pool.uuid,
             name: pool.name,
             default: pool.default?
-          }
-        ), status: :created
+          },
+          status: :created
+        )
       else
         render_error "ValidationError",
                      message: "Failed to create IP pool",
@@ -130,8 +131,9 @@ module ManagementAPI
             ipv6: ip_address.ipv6,
             hostname: ip_address.hostname,
             priority: ip_address.priority
-          }
-        ), status: :created
+          },
+          status: :created
+        )
       else
         render_error "ValidationError",
                      message: "Failed to create IP address",

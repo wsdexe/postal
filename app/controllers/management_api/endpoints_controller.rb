@@ -23,8 +23,9 @@ module ManagementAPI
 
       if endpoint.save
         render_success(
-          endpoint: serialize_http_endpoint(endpoint)
-        ), status: :created
+          endpoint: serialize_http_endpoint(endpoint),
+          status: :created
+        )
       else
         render_error "ValidationError",
                      message: "Failed to create HTTP endpoint",
@@ -63,8 +64,9 @@ module ManagementAPI
 
       if endpoint.save
         render_success(
-          endpoint: serialize_smtp_endpoint(endpoint)
-        ), status: :created
+          endpoint: serialize_smtp_endpoint(endpoint),
+          status: :created
+        )
       else
         render_error "ValidationError",
                      message: "Failed to create SMTP endpoint",
@@ -103,8 +105,9 @@ module ManagementAPI
 
       if endpoint.save
         render_success(
-          endpoint: serialize_address_endpoint(endpoint)
-        ), status: :created
+          endpoint: serialize_address_endpoint(endpoint),
+          status: :created
+        )
       else
         render_error "ValidationError",
                      message: "Failed to create address endpoint",

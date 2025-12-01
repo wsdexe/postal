@@ -43,8 +43,9 @@ module ManagementAPI
 
       if org_user.save
         render_success(
-          organization_user: serialize_organization_user(org_user)
-        ), status: :created
+          organization_user: serialize_organization_user(org_user),
+          status: :created
+        )
       else
         render_error "ValidationError",
                      message: "Failed to add user to organization",
