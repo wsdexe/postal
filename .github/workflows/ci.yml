@@ -24,13 +24,14 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.CR_PAT }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Debug login
         run: |
-          echo "Logged in as: ${{ github.repository_owner }}"
+          echo "Logged in as: ${{ github.actor }}"
           echo "Registry: ${{ env.REGISTRY }}"
           echo "Full image path: ${{ env.REGISTRY }}/${{ github.repository }}"
+          echo "GITHUB_TOKEN available: ${{ secrets.GITHUB_TOKEN != '' }}"
       - id: info
         run: |
           VER="$(git describe --tags 2>/dev/null || echo '0.0.0')"
@@ -50,6 +51,7 @@ jobs:
           echo "Registry: ${{ env.REGISTRY }}"
           echo "Repository: ${{ github.repository }}"
       - name: Build and push Docker image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -65,6 +67,15 @@ jobs:
             BRANCH=main
       - name: Verify image push
         run: |
+          echo "Image digest: ${{ steps.build.outputs.digest }}"
+          echo "Image metadata: ${{ steps.build.outputs.metadata }}"
           echo "Image should be available at:"
           echo "${{ env.REGISTRY }}/${{ github.repository }}:latest"
-          echo "Attempting to verify..."
+          echo "Checking if image was pushed..."
+          if [ -n "${{ steps.build.outputs.digest }}" ]; then
+            echo "✓ Image was pushed successfully!"
+            echo "Digest: ${{ steps.build.outputs.digest }}"
+          else
+            echo "✗ Image push may have failed - no digest"
+            exit 1
+          fi
