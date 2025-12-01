@@ -137,28 +137,19 @@ module ManagementAPI
 
     def find_owner
       if params[:server_id].present?
-        organization = Organization.present.find_by!(permalink: params[:organization_id]) ||
+        organization = Organization.present.find_by(permalink: params[:organization_id]) ||
                        Organization.present.find(params[:organization_id])
-        @owner = organization.servers.present.find_by!(permalink: params[:server_id]) ||
+        @owner = organization.servers.present.find_by(permalink: params[:server_id]) ||
                  organization.servers.present.find(params[:server_id])
       else
-        @owner = Organization.present.find_by!(permalink: params[:organization_id]) ||
+        @owner = Organization.present.find_by(permalink: params[:organization_id]) ||
                  Organization.present.find(params[:organization_id])
-      end
-    rescue ActiveRecord::RecordNotFound
-      if params[:server_id].present?
-        organization = Organization.present.find(params[:organization_id])
-        @owner = organization.servers.present.find(params[:server_id])
-      else
-        @owner = Organization.present.find(params[:organization_id])
       end
     end
 
     def find_domain
-      @domain = @owner.domains.find_by!(uuid: params[:id]) ||
+      @domain = @owner.domains.find_by(uuid: params[:id]) ||
                 @owner.domains.find(params[:id])
-    rescue ActiveRecord::RecordNotFound
-      @domain = @owner.domains.find(params[:id])
     end
 
     def domain_params

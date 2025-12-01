@@ -64,20 +64,15 @@ module ManagementAPI
     private
 
     def find_server
-      organization = Organization.present.find_by!(permalink: params[:organization_id]) ||
+      organization = Organization.present.find_by(permalink: params[:organization_id]) ||
                      Organization.present.find(params[:organization_id])
-      @server = organization.servers.present.find_by!(permalink: params[:server_id]) ||
+      @server = organization.servers.present.find_by(permalink: params[:server_id]) ||
                 organization.servers.present.find(params[:server_id])
-    rescue ActiveRecord::RecordNotFound
-      organization = Organization.present.find(params[:organization_id])
-      @server = organization.servers.present.find(params[:server_id])
     end
 
     def find_webhook
-      @webhook = @server.webhooks.find_by!(uuid: params[:id]) ||
+      @webhook = @server.webhooks.find_by(uuid: params[:id]) ||
                  @server.webhooks.find(params[:id])
-    rescue ActiveRecord::RecordNotFound
-      @webhook = @server.webhooks.find(params[:id])
     end
 
     def webhook_params
