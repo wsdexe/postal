@@ -42,8 +42,9 @@ module ManagementAPI
 
       if user.save
         render_success(
-          user: serialize_user(user)
-        ), status: :created
+          user: serialize_user(user),
+          status: :created
+        )
       else
         render_error "ValidationError",
                      message: "Failed to create user",

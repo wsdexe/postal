@@ -29,8 +29,9 @@ module ManagementAPI
 
       if webhook.save
         render_success(
-          webhook: serialize_webhook(webhook)
-        ), status: :created
+          webhook: serialize_webhook(webhook),
+          status: :created
+        )
       else
         render_error "ValidationError",
                      message: "Failed to create webhook",

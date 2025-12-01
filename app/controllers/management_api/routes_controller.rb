@@ -30,8 +30,9 @@ module ManagementAPI
 
       if route.save
         render_success(
-          route: serialize_route(route)
-        ), status: :created
+          route: serialize_route(route),
+          status: :created
+        )
       else
         render_error "ValidationError",
                      message: "Failed to create route",

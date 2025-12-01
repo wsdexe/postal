@@ -33,8 +33,9 @@ module ManagementAPI
 
       if domain.save
         render_success(
-          domain: serialize_domain(domain)
-        ), status: :created
+          domain: serialize_domain(domain),
+          status: :created
+        )
       else
         render_error "ValidationError",
                      message: "Failed to create domain",

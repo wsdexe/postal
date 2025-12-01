@@ -45,8 +45,9 @@ module ManagementAPI
         )
 
         render_success(
-          organization: serialize_organization(organization)
-        ), status: :created
+          organization: serialize_organization(organization),
+          status: :created
+        )
       else
         render_error "ValidationError",
                      message: "Failed to create organization",
