@@ -390,7 +390,7 @@ module SMTPServer
 
       else
         # User is trying to relay but is not authenticated. Try to authenticate by IP address
-        @credential = Credential.where(type: "SMTP-IP").all.sort_by { |c| c.ipaddr&.prefix || 0 }.reverse.find do |credential|
+        @credential = Credential.where(:type => 'SMTP-IP').all.sort_by { |c| c.ipaddr || 0 }.reverse.find do |credential|
           credential.ipaddr.include?(@ip_address) || (credential.ipaddr.ipv4? && credential.ipaddr.ipv4_mapped.include?(@ip_address))
         end
 
@@ -416,8 +416,7 @@ module SMTPServer
       @headers = {}
       @receiving_headers = true
 
-      received_header = ReceivedHeader.generate(@credential&.server, @helo_name, @ip_address, :smtp)
-                                      .force_encoding("BINARY")
+      received_header = "from api (10-42-11-130.email.wikium-ru.svc.cluster.local [10.42.11.130]) by VS with HTTP; #{Time.now.utc.rfc2822.to_s}".force_encoding('BINARY')
 
       @data << "Received: #{received_header}\r\n"
       @headers["received"] = [received_header]
