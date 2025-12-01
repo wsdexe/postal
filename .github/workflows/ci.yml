@@ -24,11 +24,12 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Debug login
         run: |
-          echo "Logged in as: ${{ github.actor }}"
+          echo "Logged in as: ${{ github.repository_owner }}"
+          echo "Actor: ${{ github.actor }}"
           echo "Registry: ${{ env.REGISTRY }}"
           echo "Full image path: ${{ env.REGISTRY }}/${{ github.repository }}"
           echo "GITHUB_TOKEN available: ${{ secrets.GITHUB_TOKEN != '' }}"
