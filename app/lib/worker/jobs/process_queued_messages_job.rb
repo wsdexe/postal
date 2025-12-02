@@ -18,17 +18,33 @@ module Worker
       private
 
       # Returns an array of IP address IDs that are present on the host that is
-      # running this job.
+      # running this job, plus all proxy IP addresses (which can be processed by any worker).
       #
       # @return [Array<Integer>]
       def find_ip_addresses
-        ip_addresses = { 4 => [], 6 => [] }
+        # Find local IP addresses on this host
+        local_ips = { 4 => [], 6 => [] }
         Socket.ip_address_list.each do |address|
           next if local_ip?(address.ip_address)
 
-          ip_addresses[address.ipv4? ? 4 : 6] << address.ip_address
+          local_ips[address.ipv4? ? 4 : 6] << address.ip_address
         end
-        @ip_addresses = IPAddress.where(ipv4: ip_addresses[4]).or(IPAddress.where(ipv6: ip_addresses[6])).pluck(:id)
+
+        # Get local pool IP addresses that match this host's IPs
+        local_ip_address_ids = IPAddress.joins(:ip_pool)
+                                        .where(ip_pools: { pool_type: "local" })
+                                        .where(ipv4: local_ips[4])
+                                        .or(IPAddress.joins(:ip_pool)
+                                                     .where(ip_pools: { pool_type: "local" })
+                                                     .where(ipv6: local_ips[6]))
+                                        .pluck(:id)
+
+        # Get ALL proxy pool IP addresses (any worker can process proxy messages)
+        proxy_ip_address_ids = IPAddress.joins(:ip_pool)
+                                        .where(ip_pools: { pool_type: "proxy" })
+                                        .pluck(:id)
+
+        @ip_addresses = local_ip_address_ids + proxy_ip_address_ids
       end
 
       # Is the given IP address a local address?

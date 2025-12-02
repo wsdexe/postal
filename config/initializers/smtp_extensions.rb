@@ -1,9 +1,12 @@
 # frozen_string_literal: true
 
+require "socksify"
+
 module Net
   class SMTP
 
     attr_accessor :source_address
+    attr_accessor :socks5_proxy
 
     def secure_socket?
       return false unless @socket
@@ -29,7 +32,29 @@ module Net
     private
 
     def tcp_socket(address, port)
-      TCPSocket.open(address, port, source_address)
+      if socks5_proxy
+        # Use SOCKS5 proxy for connection
+        if socks5_proxy[:username].present? && socks5_proxy[:password].present?
+          Socksify::TCPSocket.new(
+            address,
+            port,
+            socks5_proxy[:host],
+            socks5_proxy[:port],
+            socks5_proxy[:username],
+            socks5_proxy[:password]
+          )
+        else
+          Socksify::TCPSocket.new(
+            address,
+            port,
+            socks5_proxy[:host],
+            socks5_proxy[:port]
+          )
+        end
+      else
+        # Original behavior: direct connection with optional source address
+        TCPSocket.open(address, port, source_address)
+      end
     end
 
     class Response

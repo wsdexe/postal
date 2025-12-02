@@ -62,7 +62,18 @@ module SMTPClient
       end
 
       if @source_ip_address
-        @smtp_client.source_address = ipv6? ? @source_ip_address.ipv6 : @source_ip_address.ipv4
+        if @source_ip_address.ip_pool&.proxy?
+          # Proxy mode: configure SOCKS5 proxy
+          @smtp_client.socks5_proxy = {
+            host: @source_ip_address.ipv4,
+            port: @source_ip_address.proxy_port,
+            username: @source_ip_address.proxy_username,
+            password: @source_ip_address.proxy_password
+          }
+        else
+          # Local IP mode: bind to source address
+          @smtp_client.source_address = ipv6? ? @source_ip_address.ipv6 : @source_ip_address.ipv4
+        end
       end
 
       if allow_ssl

@@ -11,17 +11,25 @@
       %p.noData__text
         All messages sent from your mail server can be sent from certain pools of
         IP addresses. Each server can be assigned to a pool and rules can be configured
-        to route certain email through certain pools.
-      %p.noData__button= link_to "Create the first IP pool", :new_ip_pool, :class => 'button button--positive'
+        to route certain email through certain pools. Local pools use server IPs directly,
+        while proxy pools route traffic through SOCKS5 proxies.
+      %p.noData__button
+        = link_to "Add local IP pool", new_ip_pool_path(pool_type: "local"), :class => 'button button--positive'
+        = link_to "Add proxy IP pool", new_ip_pool_path(pool_type: "proxy"), :class => 'button button--positive'
   - else
     %p.pageContent__intro.u-margin
       IP pools are the addresses that your outgoing messages are sent from. You can
-      create as many pools as you wish.
+      create as many pools as you wish. Local pools use server IPs directly,
+      while proxy pools route traffic through SOCKS5 proxies.
 
     %ul.largeList.u-margin
       - for ip_pool in @ip_pools
         %li.largeList__item
           = link_to edit_ip_pool_path(ip_pool), :class => 'largeList__link' do
             = ip_pool.name
+            %span.tag{:class => ip_pool.proxy? ? 'tag--purple' : 'tag--green'}
+              = ip_pool.pool_type.titleize
 
-    %p.u-center= link_to "Add another IP pool", :new_ip_pool, :class => 'button button--positive'
+    %p.u-center
+      = link_to "Add local IP pool", new_ip_pool_path(pool_type: "local"), :class => 'button button--positive'
+      = link_to "Add proxy IP pool", new_ip_pool_path(pool_type: "proxy"), :class => 'button button--positive'
