@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+      - 'feature/**'
+      - 'experiment/**'
+      - 'fix/**'
 
 env:
   REGISTRY: ghcr.io
@@ -42,9 +45,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}
           tags: |
-            type=raw,value=latest
-            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=ref,event=branch
+            type=sha,prefix={{branch}}-
       - name: Debug metadata
         run: |
           echo "Tags: ${{ steps.meta.outputs.tags }}"
@@ -65,7 +68,7 @@ jobs:
           platforms: linux/amd64
           build-args: |
             VERSION=${{ steps.info.outputs.version }}
-            BRANCH=main
+            BRANCH=${{ github.ref_name }}
       - name: Verify image push
         run: |
           echo "Image digest: ${{ steps.build.outputs.digest }}"
