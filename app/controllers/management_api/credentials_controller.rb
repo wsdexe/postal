@@ -9,17 +9,17 @@ module ManagementAPI
     # List all credentials for a server
     def index
       credentials = @server.credentials.order(:name)
-      render_success(
+      render_success({
         credentials: credentials.map { |credential| serialize_credential(credential) }
-      )
+      })
     end
 
     # GET /api/v2/organizations/:organization_id/servers/:server_id/credentials/:id
     # Get a single credential
     def show
-      render_success(
+      render_success({
         credential: serialize_credential(@credential)
-      )
+      })
     end
 
     # POST /api/v2/organizations/:organization_id/servers/:server_id/credentials
@@ -28,10 +28,9 @@ module ManagementAPI
       credential = @server.credentials.build(credential_params)
 
       if credential.save
-        render_success(
-          credential: serialize_credential(credential),
-          status: :created
-        )
+        render_success({
+          credential: serialize_credential(credential)
+        }, status: :created)
       else
         render_error "ValidationError",
                      message: "Failed to create credential",
@@ -43,9 +42,9 @@ module ManagementAPI
     # Update a credential
     def update
       if @credential.update(credential_params)
-        render_success(
+        render_success({
           credential: serialize_credential(@credential)
-        )
+        })
       else
         render_error "ValidationError",
                      message: "Failed to update credential",
@@ -57,9 +56,9 @@ module ManagementAPI
     # Delete a credential
     def destroy
       @credential.destroy
-      render_success(
+      render_success({
         message: "Credential deleted successfully"
-      )
+      })
     end
 
     private

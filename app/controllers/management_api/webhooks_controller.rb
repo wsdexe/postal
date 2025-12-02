@@ -9,17 +9,17 @@ module ManagementAPI
     # List all webhooks for a server
     def index
       webhooks = @server.webhooks.order(:name)
-      render_success(
+      render_success({
         webhooks: webhooks.map { |webhook| serialize_webhook(webhook) }
-      )
+      })
     end
 
     # GET /api/v2/organizations/:organization_id/servers/:server_id/webhooks/:id
     # Get a single webhook
     def show
-      render_success(
+      render_success({
         webhook: serialize_webhook(@webhook)
-      )
+      })
     end
 
     # POST /api/v2/organizations/:organization_id/servers/:server_id/webhooks
@@ -28,10 +28,9 @@ module ManagementAPI
       webhook = @server.webhooks.build(webhook_params)
 
       if webhook.save
-        render_success(
-          webhook: serialize_webhook(webhook),
-          status: :created
-        )
+        render_success({
+          webhook: serialize_webhook(webhook)
+        }, status: :created)
       else
         render_error "ValidationError",
                      message: "Failed to create webhook",
@@ -43,9 +42,9 @@ module ManagementAPI
     # Update a webhook
     def update
       if @webhook.update(webhook_params)
-        render_success(
+        render_success({
           webhook: serialize_webhook(@webhook)
-        )
+        })
       else
         render_error "ValidationError",
                      message: "Failed to update webhook",
@@ -57,9 +56,9 @@ module ManagementAPI
     # Delete a webhook
     def destroy
       @webhook.destroy
-      render_success(
+      render_success({
         message: "Webhook deleted successfully"
-      )
+      })
     end
 
     private

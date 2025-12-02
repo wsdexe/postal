@@ -20,18 +20,18 @@ module ManagementAPI
         users = users.where(admin: api_params["admin"] == "true")
       end
 
-      render_success(
+      render_success({
         users: users.map { |user| serialize_user(user) }
-      )
+      })
     end
 
     # GET /api/v2/users/:id
     # Get a single user
     def show
-      render_success(
+      render_success({
         user: serialize_user(@user),
         organizations: @user.organizations.present.map { |org| serialize_organization(org) }
-      )
+      })
     end
 
     # POST /api/v2/users
@@ -41,10 +41,9 @@ module ManagementAPI
       user.email_verified_at = Time.now if api_params["email_verified"]
 
       if user.save
-        render_success(
-          user: serialize_user(user),
-          status: :created
-        )
+        render_success({
+          user: serialize_user(user)
+        }, status: :created)
       else
         render_error "ValidationError",
                      message: "Failed to create user",
@@ -56,9 +55,9 @@ module ManagementAPI
     # Update a user
     def update
       if @user.update(user_params)
-        render_success(
+        render_success({
           user: serialize_user(@user)
-        )
+        })
       else
         render_error "ValidationError",
                      message: "Failed to update user",
@@ -76,19 +75,19 @@ module ManagementAPI
       end
 
       @user.destroy
-      render_success(
+      render_success({
         message: "User deleted successfully"
-      )
+      })
     end
 
     # POST /api/v2/users/:id/make_admin
     # Make a user an admin
     def make_admin
       @user.update!(admin: true)
-      render_success(
+      render_success({
         user: serialize_user(@user),
         message: "User is now an admin"
-      )
+      })
     end
 
     # POST /api/v2/users/:id/revoke_admin
@@ -101,10 +100,10 @@ module ManagementAPI
       end
 
       @user.update!(admin: false)
-      render_success(
+      render_success({
         user: serialize_user(@user),
         message: "Admin privileges revoked"
-      )
+      })
     end
 
     private

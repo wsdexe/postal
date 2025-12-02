@@ -13,7 +13,7 @@ module ManagementAPI
         address: @server.address_endpoints.map { |e| serialize_address_endpoint(e) }
       }
 
-      render_success(endpoints: endpoints)
+      render_success({ endpoints: endpoints })
     end
 
     # POST /api/v2/organizations/:organization_id/servers/:server_id/endpoints/http
@@ -22,10 +22,9 @@ module ManagementAPI
       endpoint = @server.http_endpoints.build(http_endpoint_params)
 
       if endpoint.save
-        render_success(
-          endpoint: serialize_http_endpoint(endpoint),
-          status: :created
-        )
+        render_success({
+          endpoint: serialize_http_endpoint(endpoint)
+        }, status: :created)
       else
         render_error "ValidationError",
                      message: "Failed to create HTTP endpoint",
@@ -39,9 +38,9 @@ module ManagementAPI
       endpoint = @server.http_endpoints.find_by!(uuid: params[:id])
 
       if endpoint.update(http_endpoint_params)
-        render_success(
+        render_success({
           endpoint: serialize_http_endpoint(endpoint)
-        )
+        })
       else
         render_error "ValidationError",
                      message: "Failed to update HTTP endpoint",
@@ -54,7 +53,7 @@ module ManagementAPI
     def destroy_http
       endpoint = @server.http_endpoints.find_by!(uuid: params[:id])
       endpoint.destroy
-      render_success(message: "HTTP endpoint deleted successfully")
+      render_success({ message: "HTTP endpoint deleted successfully" })
     end
 
     # POST /api/v2/organizations/:organization_id/servers/:server_id/endpoints/smtp
@@ -63,10 +62,9 @@ module ManagementAPI
       endpoint = @server.smtp_endpoints.build(smtp_endpoint_params)
 
       if endpoint.save
-        render_success(
-          endpoint: serialize_smtp_endpoint(endpoint),
-          status: :created
-        )
+        render_success({
+          endpoint: serialize_smtp_endpoint(endpoint)
+        }, status: :created)
       else
         render_error "ValidationError",
                      message: "Failed to create SMTP endpoint",
@@ -80,9 +78,9 @@ module ManagementAPI
       endpoint = @server.smtp_endpoints.find_by!(uuid: params[:id])
 
       if endpoint.update(smtp_endpoint_params)
-        render_success(
+        render_success({
           endpoint: serialize_smtp_endpoint(endpoint)
-        )
+        })
       else
         render_error "ValidationError",
                      message: "Failed to update SMTP endpoint",
@@ -95,7 +93,7 @@ module ManagementAPI
     def destroy_smtp
       endpoint = @server.smtp_endpoints.find_by!(uuid: params[:id])
       endpoint.destroy
-      render_success(message: "SMTP endpoint deleted successfully")
+      render_success({ message: "SMTP endpoint deleted successfully" })
     end
 
     # POST /api/v2/organizations/:organization_id/servers/:server_id/endpoints/address
@@ -104,10 +102,9 @@ module ManagementAPI
       endpoint = @server.address_endpoints.build(address_endpoint_params)
 
       if endpoint.save
-        render_success(
-          endpoint: serialize_address_endpoint(endpoint),
-          status: :created
-        )
+        render_success({
+          endpoint: serialize_address_endpoint(endpoint)
+        }, status: :created)
       else
         render_error "ValidationError",
                      message: "Failed to create address endpoint",
@@ -121,9 +118,9 @@ module ManagementAPI
       endpoint = @server.address_endpoints.find_by!(uuid: params[:id])
 
       if endpoint.update(address_endpoint_params)
-        render_success(
+        render_success({
           endpoint: serialize_address_endpoint(endpoint)
-        )
+        })
       else
         render_error "ValidationError",
                      message: "Failed to update address endpoint",
@@ -136,7 +133,7 @@ module ManagementAPI
     def destroy_address
       endpoint = @server.address_endpoints.find_by!(uuid: params[:id])
       endpoint.destroy
-      render_success(message: "Address endpoint deleted successfully")
+      render_success({ message: "Address endpoint deleted successfully" })
     end
 
     private

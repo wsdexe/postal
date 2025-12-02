@@ -15,17 +15,17 @@ module ManagementAPI
                                             "%#{api_params['query']}%")
       end
 
-      render_success(
+      render_success({
         organizations: organizations.map { |org| serialize_organization(org) }
-      )
+      })
     end
 
     # GET /api/v2/organizations/:id
     # Get a single organization
     def show
-      render_success(
+      render_success({
         organization: serialize_organization(@organization)
-      )
+      })
     end
 
     # POST /api/v2/organizations
@@ -44,10 +44,9 @@ module ManagementAPI
           all_servers: true
         )
 
-        render_success(
-          organization: serialize_organization(organization),
-          status: :created
-        )
+        render_success({
+          organization: serialize_organization(organization)
+        }, status: :created)
       else
         render_error "ValidationError",
                      message: "Failed to create organization",
@@ -59,9 +58,9 @@ module ManagementAPI
     # Update an organization
     def update
       if @organization.update(organization_params)
-        render_success(
+        render_success({
           organization: serialize_organization(@organization)
-        )
+        })
       else
         render_error "ValidationError",
                      message: "Failed to update organization",
@@ -73,9 +72,9 @@ module ManagementAPI
     # Delete an organization
     def destroy
       @organization.soft_destroy
-      render_success(
+      render_success({
         message: "Organization deleted successfully"
-      )
+      })
     end
 
     # POST /api/v2/organizations/:id/suspend
@@ -86,10 +85,10 @@ module ManagementAPI
       @organization.suspension_reason = reason
       @organization.save!
 
-      render_success(
+      render_success({
         organization: serialize_organization(@organization),
         message: "Organization suspended"
-      )
+      })
     end
 
     # POST /api/v2/organizations/:id/unsuspend
@@ -99,10 +98,10 @@ module ManagementAPI
       @organization.suspension_reason = nil
       @organization.save!
 
-      render_success(
+      render_success({
         organization: serialize_organization(@organization),
         message: "Organization unsuspended"
-      )
+      })
     end
 
     private

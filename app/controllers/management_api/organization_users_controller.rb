@@ -10,17 +10,17 @@ module ManagementAPI
     def index
       org_users = @organization.organization_users.includes(:user)
 
-      render_success(
+      render_success({
         users: org_users.map { |ou| serialize_organization_user(ou) }
-      )
+      })
     end
 
     # GET /api/v2/organizations/:organization_id/users/:id
     # Get a single organization user
     def show
-      render_success(
+      render_success({
         organization_user: serialize_organization_user(@organization_user)
-      )
+      })
     end
 
     # POST /api/v2/organizations/:organization_id/users
@@ -42,10 +42,9 @@ module ManagementAPI
       )
 
       if org_user.save
-        render_success(
-          organization_user: serialize_organization_user(org_user),
-          status: :created
-        )
+        render_success({
+          organization_user: serialize_organization_user(org_user)
+        }, status: :created)
       else
         render_error "ValidationError",
                      message: "Failed to add user to organization",
@@ -61,9 +60,9 @@ module ManagementAPI
       update_params[:all_servers] = api_params["all_servers"] if api_params.key?("all_servers")
 
       if @organization_user.update(update_params)
-        render_success(
+        render_success({
           organization_user: serialize_organization_user(@organization_user)
-        )
+        })
       else
         render_error "ValidationError",
                      message: "Failed to update organization user",
@@ -81,9 +80,9 @@ module ManagementAPI
       end
 
       @organization_user.destroy
-      render_success(
+      render_success({
         message: "User removed from organization"
-      )
+      })
     end
 
     # POST /api/v2/organizations/:organization_id/transfer_ownership
@@ -101,10 +100,10 @@ module ManagementAPI
 
       @organization.make_owner(new_owner)
 
-      render_success(
+      render_success({
         organization: serialize_organization(@organization.reload),
         message: "Ownership transferred successfully"
-      )
+      })
     end
 
     private

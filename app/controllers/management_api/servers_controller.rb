@@ -16,26 +16,26 @@ module ManagementAPI
                                 "%#{api_params['query']}%")
       end
 
-      render_success(
+      render_success({
         servers: servers.map { |server| serialize_server(server) }
-      )
+      })
     end
 
     # GET /api/v2/organizations/:organization_id/servers
     # List all servers in an organization
     def index
       servers = @organization.servers.present.order(:name)
-      render_success(
+      render_success({
         servers: servers.map { |server| serialize_server(server) }
-      )
+      })
     end
 
     # GET /api/v2/organizations/:organization_id/servers/:id
     # Get a single server
     def show
-      render_success(
+      render_success({
         server: serialize_server(@server)
-      )
+      })
     end
 
     # POST /api/v2/organizations/:organization_id/servers
@@ -45,10 +45,9 @@ module ManagementAPI
       server.mode ||= "Live"
 
       if server.save
-        render_success(
-          server: serialize_server(server),
-          status: :created
-        )
+        render_success({
+          server: serialize_server(server)
+        }, status: :created)
       else
         render_error "ValidationError",
                      message: "Failed to create server",
@@ -60,9 +59,9 @@ module ManagementAPI
     # Update a server
     def update
       if @server.update(server_params)
-        render_success(
+        render_success({
           server: serialize_server(@server)
-        )
+        })
       else
         render_error "ValidationError",
                      message: "Failed to update server",
@@ -74,9 +73,9 @@ module ManagementAPI
     # Delete a server
     def destroy
       @server.soft_destroy
-      render_success(
+      render_success({
         message: "Server deleted successfully"
-      )
+      })
     end
 
     # POST /api/v2/organizations/:organization_id/servers/:id/suspend
@@ -85,10 +84,10 @@ module ManagementAPI
       reason = api_params["reason"] || "Suspended via API"
       @server.suspend(reason)
 
-      render_success(
+      render_success({
         server: serialize_server(@server.reload),
         message: "Server suspended"
-      )
+      })
     end
 
     # POST /api/v2/organizations/:organization_id/servers/:id/unsuspend
@@ -96,16 +95,16 @@ module ManagementAPI
     def unsuspend
       @server.unsuspend
 
-      render_success(
+      render_success({
         server: serialize_server(@server.reload),
         message: "Server unsuspended"
-      )
+      })
     end
 
     # GET /api/v2/organizations/:organization_id/servers/:id/stats
     # Get server statistics
     def stats
-      render_success(
+      render_success({
         server: {
           id: @server.id,
           uuid: @server.uuid,
@@ -127,7 +126,7 @@ module ManagementAPI
           send_limit_exceeded: @server.send_limit_exceeded?,
           queue_size: @server.queue_size
         }
-      )
+      })
     end
 
     private

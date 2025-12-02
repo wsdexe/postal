@@ -10,18 +10,18 @@ module ManagementAPI
     # List all domains for a server or organization
     def index
       domains = @owner.domains.order(:name)
-      render_success(
+      render_success({
         domains: domains.map { |domain| serialize_domain(domain) }
-      )
+      })
     end
 
     # GET /api/v2/organizations/:organization_id/servers/:server_id/domains/:id
     # GET /api/v2/organizations/:organization_id/domains/:id
     # Get a single domain
     def show
-      render_success(
+      render_success({
         domain: serialize_domain(@domain)
-      )
+      })
     end
 
     # POST /api/v2/organizations/:organization_id/servers/:server_id/domains
@@ -32,10 +32,9 @@ module ManagementAPI
       domain.verification_method ||= "DNS"
 
       if domain.save
-        render_success(
-          domain: serialize_domain(domain),
-          status: :created
-        )
+        render_success({
+          domain: serialize_domain(domain)
+        }, status: :created)
       else
         render_error "ValidationError",
                      message: "Failed to create domain",
@@ -48,9 +47,9 @@ module ManagementAPI
     # Update a domain
     def update
       if @domain.update(domain_params)
-        render_success(
+        render_success({
           domain: serialize_domain(@domain)
-        )
+        })
       else
         render_error "ValidationError",
                      message: "Failed to update domain",
@@ -63,9 +62,9 @@ module ManagementAPI
     # Delete a domain
     def destroy
       @domain.destroy
-      render_success(
+      render_success({
         message: "Domain deleted successfully"
-      )
+      })
     end
 
     # POST /api/v2/organizations/:organization_id/servers/:server_id/domains/:id/verify
@@ -73,19 +72,19 @@ module ManagementAPI
     # Verify a domain
     def verify
       if @domain.verified?
-        render_success(
+        render_success({
           domain: serialize_domain(@domain),
           message: "Domain is already verified"
-        )
+        })
         return
       end
 
       if @domain.verification_method == "DNS"
         if @domain.verify_with_dns
-          render_success(
+          render_success({
             domain: serialize_domain(@domain.reload),
             message: "Domain verified successfully"
-          )
+          })
         else
           render_error "VerificationFailed",
                        message: "DNS verification failed. Make sure the TXT record is set correctly.",
@@ -107,7 +106,7 @@ module ManagementAPI
       @domain.check_dns
       @domain.save
 
-      render_success(
+      render_success({
         domain: serialize_domain(@domain.reload),
         dns_status: {
           spf: {
@@ -131,7 +130,7 @@ module ManagementAPI
             domain: @domain.return_path_domain
           }
         }
-      )
+      })
     end
 
     private

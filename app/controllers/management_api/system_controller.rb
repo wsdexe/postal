@@ -5,13 +5,13 @@ module ManagementAPI
     # GET /api/v2/system/info
     # Get system information
     def info
-      render_success(
+      render_success({
         version: Postal.version,
         ruby_version: RUBY_VERSION,
         rails_version: Rails::VERSION::STRING,
         database_connected: database_connected?,
         time: Time.now.utc.iso8601
-      )
+      })
     end
 
     # GET /api/v2/system/health
@@ -34,7 +34,7 @@ module ManagementAPI
     # GET /api/v2/system/stats
     # Get system-wide statistics
     def stats
-      render_success(
+      render_success({
         organizations: {
           total: Organization.present.count,
           suspended: Organization.present.where.not(suspended_at: nil).count
@@ -58,14 +58,14 @@ module ManagementAPI
         ip_addresses: {
           total: IPAddress.count
         }
-      )
+      })
     end
 
     # GET /api/v2/system/ip_pools
     # List all IP pools
     def ip_pools
       pools = IPPool.includes(:ip_addresses).order(:name)
-      render_success(
+      render_success({
         ip_pools: pools.map do |pool|
           {
             id: pool.id,
@@ -84,7 +84,7 @@ module ManagementAPI
             created_at: pool.created_at&.iso8601
           }
         end
-      )
+      })
     end
 
     # POST /api/v2/system/ip_pools
@@ -93,15 +93,14 @@ module ManagementAPI
       pool = IPPool.new(ip_pool_params)
 
       if pool.save
-        render_success(
+        render_success({
           ip_pool: {
             id: pool.id,
             uuid: pool.uuid,
             name: pool.name,
             default: pool.default?
-          },
-          status: :created
-        )
+          }
+        }, status: :created)
       else
         render_error "ValidationError",
                      message: "Failed to create IP pool",
@@ -114,7 +113,7 @@ module ManagementAPI
     def destroy_ip_pool
       pool = IPPool.find(params[:id])
       pool.destroy
-      render_success(message: "IP pool deleted successfully")
+      render_success({ message: "IP pool deleted successfully" })
     end
 
     # POST /api/v2/system/ip_pools/:id/ip_addresses
@@ -124,16 +123,15 @@ module ManagementAPI
       ip_address = pool.ip_addresses.build(ip_address_params)
 
       if ip_address.save
-        render_success(
+        render_success({
           ip_address: {
             id: ip_address.id,
             ipv4: ip_address.ipv4,
             ipv6: ip_address.ipv6,
             hostname: ip_address.hostname,
             priority: ip_address.priority
-          },
-          status: :created
-        )
+          }
+        }, status: :created)
       else
         render_error "ValidationError",
                      message: "Failed to create IP address",
@@ -146,7 +144,7 @@ module ManagementAPI
     def destroy_ip_address
       ip_address = IPAddress.find(params[:id])
       ip_address.destroy
-      render_success(message: "IP address deleted successfully")
+      render_success({ message: "IP address deleted successfully" })
     end
 
     private
