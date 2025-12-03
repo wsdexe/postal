@@ -33,24 +33,16 @@ module Net
 
     def tcp_socket(address, port)
       if socks5_proxy
-        # Use SOCKS5 proxy for connection
-        if socks5_proxy[:username].present? && socks5_proxy[:password].present?
-          Socksify::TCPSocket.new(
-            address,
-            port,
-            socks5_proxy[:host],
-            socks5_proxy[:port],
-            socks5_proxy[:username],
-            socks5_proxy[:password]
-          )
-        else
-          Socksify::TCPSocket.new(
-            address,
-            port,
-            socks5_proxy[:host],
-            socks5_proxy[:port]
-          )
-        end
+        # Use SOCKS5 proxy for connection via SOCKSConnectionPeerAddress
+        # This creates a per-connection proxy without affecting global settings
+        peer = TCPSocket::SOCKSConnectionPeerAddress.new(
+          socks5_proxy[:host],
+          socks5_proxy[:port],
+          address,
+          socks5_proxy[:username].presence,
+          socks5_proxy[:password].presence
+        )
+        TCPSocket.new(peer, port)
       else
         # Original behavior: direct connection with optional source address
         TCPSocket.open(address, port, source_address)
