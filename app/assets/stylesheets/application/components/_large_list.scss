@@ -48,3 +48,8 @@
   float:right;
   line-height:0.8;
 }
+
+.largeList__link:hover .label {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}

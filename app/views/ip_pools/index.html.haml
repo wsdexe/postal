@@ -15,7 +15,7 @@
         while proxy pools route traffic through SOCKS5 proxies.
       %p.noData__button
         = link_to "Add local IP pool", new_ip_pool_path(pool_type: "local"), :class => 'button button--positive'
-        = link_to "Add proxy IP pool", new_ip_pool_path(pool_type: "proxy"), :class => 'button button--positive'
+        = link_to "Add proxy IP pool", new_ip_pool_path(pool_type: "proxy"), :class => 'button'
   - else
     %p.pageContent__intro.u-margin
       IP pools are the addresses that your outgoing messages are sent from. You can
@@ -26,10 +26,11 @@
       - for ip_pool in @ip_pools
         %li.largeList__item
           = link_to edit_ip_pool_path(ip_pool), :class => 'largeList__link' do
+            %span.largeList__rightLabel
+              %span.label.label--large{:class => ip_pool.proxy? ? 'label--blue' : 'label--green'}
+                = ip_pool.pool_type.titleize
             = ip_pool.name
-            %span.tag{:class => ip_pool.proxy? ? 'tag--purple' : 'tag--green'}
-              = ip_pool.pool_type.titleize
 
     %p.u-center
       = link_to "Add local IP pool", new_ip_pool_path(pool_type: "local"), :class => 'button button--positive'
-      = link_to "Add proxy IP pool", new_ip_pool_path(pool_type: "proxy"), :class => 'button button--positive'
+      = link_to "Add proxy IP pool", new_ip_pool_path(pool_type: "proxy"), :class => 'button'
