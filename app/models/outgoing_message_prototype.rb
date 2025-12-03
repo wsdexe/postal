@@ -25,13 +25,18 @@ class OutgoingMessagePrototype
     @source_type = source_type
     @custom_headers = {}
     @attachments = []
-    @message_id = "#{SecureRandom.uuid}@#{Postal::Config.dns.return_path_domain}"
     attributes.each do |key, value|
       instance_variable_set("@#{key}", value)
     end
   end
 
-  attr_reader :message_id
+  def message_id
+    @message_id ||= begin
+      from_domain = from_address&.split("@")&.last
+      domain_for_id = from_domain.presence || Postal::Config.dns.return_path_domain
+      "#{SecureRandom.uuid}@#{domain_for_id}"
+    end
+  end
 
   def from_address
     Postal::Helpers.strip_name_from_address(@from)
