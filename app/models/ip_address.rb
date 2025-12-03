@@ -48,34 +48,53 @@ class IPAddress < ApplicationRecord
   def verify_proxy!
     return false unless ip_pool&.proxy?
 
-    require "net/http"
-    require "socksify/http"
+    require "socksify"
 
-    begin
-      uri = URI.parse("http://ifconfig.me/")
+    smtp_host = Postal::Config.proxy_verification.smtp_host
+    smtp_port = Postal::Config.proxy_verification.smtp_port
+    timeout = Postal::Config.proxy_verification.timeout
+    max_attempts = Postal::Config.proxy_verification.connection_attempts
 
-      proxy_class = if proxy_username.present? && proxy_password.present?
-                      Net::HTTP.SOCKSProxy(ipv4, proxy_port, proxy_username, proxy_password)
-                    else
-                      Net::HTTP.SOCKSProxy(ipv4, proxy_port)
-                    end
+    last_error = nil
+    max_attempts.times do |attempt|
+      begin
+        # Create SOCKS5 proxy connection to SMTP server
+        peer = TCPSocket::SOCKSConnectionPeerAddress.new(
+          ipv4,
+          proxy_port,
+          smtp_host,
+          proxy_username.presence,
+          proxy_password.presence
+        )
 
-      proxy_class.start(uri.host, uri.port) do |http|
-        http.open_timeout = 10
-        http.read_timeout = 10
-        response = http.get("/")
-        if response.is_a?(Net::HTTPSuccess)
-          update!(verified_at: Time.current, verification_error: nil)
-          return true
-        else
-          update!(verified_at: nil, verification_error: "HTTP #{response.code}")
-          return false
+        socket = nil
+        Timeout.timeout(timeout) do
+          socket = TCPSocket.new(peer, smtp_port)
+          # Read SMTP banner (220 response)
+          response = socket.gets
+          if response&.start_with?("220")
+            socket.puts("QUIT")
+            socket.close
+            update!(verified_at: Time.current, verification_error: nil)
+            return true
+          else
+            last_error = "Invalid SMTP response: #{response&.strip&.truncate(100) || 'no response'}"
+          end
         end
+      rescue Timeout::Error
+        last_error = "Connection timeout (#{timeout}s)"
+      rescue StandardError => e
+        last_error = e.message
+      ensure
+        socket&.close rescue nil
       end
-    rescue StandardError => e
-      update!(verified_at: nil, verification_error: e.message.truncate(255))
-      false
+
+      # Wait before retry (except on last attempt)
+      sleep(1) if attempt < max_attempts - 1
     end
+
+    update!(verified_at: nil, verification_error: last_error&.truncate(255))
+    false
   end
 
   def verified?
