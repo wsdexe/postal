@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2024_03_11_205229) do
+ActiveRecord::Schema[7.0].define(version: 2024_12_02_000001) do
   create_table "additional_route_endpoints", id: :integer, charset: "utf8mb4", collation: "utf8mb4_general_ci", force: :cascade do |t|
     t.integer "route_id"
     t.string "endpoint_type"
@@ -147,6 +147,8 @@ ActiveRecord::Schema[7.0].define(version: 2024_03_11_205229) do
     t.datetime "created_at"
     t.datetime "updated_at"
     t.boolean "default", default: false
+    t.string "pool_type", default: "local", null: false
+    t.index ["pool_type"], name: "index_ip_pools_on_pool_type"
     t.index ["uuid"], name: "index_ip_pools_on_uuid", length: 8
   end
 
