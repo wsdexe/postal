@@ -18,6 +18,7 @@ Rails.application.routes.draw do
     delete "system/ip_pools/:id" => "system#destroy_ip_pool"
     post "system/ip_pools/:id/ip_addresses" => "system#create_ip_address"
     delete "system/ip_addresses/:id" => "system#destroy_ip_address"
+    post "system/ip_addresses/:id/verify" => "system#verify_ip_address"
 
     # Users (global)
     resources :users do
@@ -160,7 +161,9 @@ Rails.application.routes.draw do
   resources :organizations, except: [:index]
   resources :users
   resources :ip_pools do
-    resources :ip_addresses
+    resources :ip_addresses do
+      post :verify, on: :member
+    end
   end
 
   get "settings" => "user#edit"

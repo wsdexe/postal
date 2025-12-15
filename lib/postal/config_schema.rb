@@ -525,6 +525,28 @@ module Postal
       end
     end
 
+    group :proxy_verification do
+      string :smtp_host do
+        description "The SMTP server hostname to use for proxy verification"
+        default "smtp.gmail.com"
+      end
+
+      integer :smtp_port do
+        description "The SMTP server port to use for proxy verification"
+        default 587
+      end
+
+      integer :timeout do
+        description "Connection timeout in seconds for proxy verification"
+        default 10
+      end
+
+      integer :connection_attempts do
+        description "Number of connection attempts for proxy verification"
+        default 3
+      end
+    end
+
     group :oidc do
       boolean :enabled do
         description "Enable OIDC authentication"

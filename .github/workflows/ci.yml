@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - proxy
       - 'feature/**'
       - 'experiment/**'
       - 'fix/**'
@@ -46,6 +47,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=proxy,enable=${{ github.ref == 'refs/heads/proxy' }}
             type=ref,event=branch
             type=sha,prefix={{branch}}-
       - name: Debug metadata

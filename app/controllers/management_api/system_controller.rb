@@ -71,15 +71,24 @@ module ManagementAPI
             id: pool.id,
             uuid: pool.uuid,
             name: pool.name,
+            pool_type: pool.pool_type,
             default: pool.default?,
             ip_addresses: pool.ip_addresses.map do |ip|
-              {
+              address_data = {
                 id: ip.id,
                 ipv4: ip.ipv4,
-                ipv6: ip.ipv6,
                 hostname: ip.hostname,
                 priority: ip.priority
               }
+              if pool.proxy?
+                address_data[:proxy_port] = ip.proxy_port
+                address_data[:proxy_username] = ip.proxy_username
+                address_data[:verified] = ip.verified?
+                address_data[:verification_error] = ip.verification_error
+              else
+                address_data[:ipv6] = ip.ipv6
+              end
+              address_data
             end,
             created_at: pool.created_at&.iso8601
           }
@@ -98,6 +107,7 @@ module ManagementAPI
             id: pool.id,
             uuid: pool.uuid,
             name: pool.name,
+            pool_type: pool.pool_type,
             default: pool.default?
           }
         }, status: :created)
@@ -120,18 +130,23 @@ module ManagementAPI
     # Add an IP address to a pool
     def create_ip_address
       pool = IPPool.find(params[:id])
-      ip_address = pool.ip_addresses.build(ip_address_params)
+      ip_address = pool.ip_addresses.build(ip_address_params(pool))
 
       if ip_address.save
-        render_success({
-          ip_address: {
-            id: ip_address.id,
-            ipv4: ip_address.ipv4,
-            ipv6: ip_address.ipv6,
-            hostname: ip_address.hostname,
-            priority: ip_address.priority
-          }
-        }, status: :created)
+        address_data = {
+          id: ip_address.id,
+          ipv4: ip_address.ipv4,
+          hostname: ip_address.hostname,
+          priority: ip_address.priority
+        }
+        if pool.proxy?
+          address_data[:proxy_port] = ip_address.proxy_port
+          address_data[:proxy_username] = ip_address.proxy_username
+          address_data[:verified] = ip_address.verified?
+        else
+          address_data[:ipv6] = ip_address.ipv6
+        end
+        render_success({ ip_address: address_data }, status: :created)
       else
         render_error "ValidationError",
                      message: "Failed to create IP address",
@@ -145,6 +160,23 @@ module ManagementAPI
       ip_address = IPAddress.find(params[:id])
       ip_address.destroy
       render_success({ message: "IP address deleted successfully" })
+    end
+
+    # POST /api/v2/system/ip_addresses/:id/verify
+    # Verify a proxy address
+    def verify_ip_address
+      ip_address = IPAddress.find(params[:id])
+
+      unless ip_address.ip_pool&.proxy?
+        render_error "InvalidOperation", message: "Verification is only available for proxy addresses"
+        return
+      end
+
+      if ip_address.verify_proxy!
+        render_success({ verified: true, message: "Proxy verified successfully" })
+      else
+        render_error "VerificationFailed", message: ip_address.verification_error
+      end
     end
 
     private
@@ -166,11 +198,15 @@ module ManagementAPI
     end
 
     def ip_pool_params
-      api_params.slice("name", "default").symbolize_keys
+      api_params.slice("name", "default", "pool_type").symbolize_keys
     end
 
-    def ip_address_params
-      api_params.slice("ipv4", "ipv6", "hostname", "priority").symbolize_keys
+    def ip_address_params(pool)
+      if pool.proxy?
+        api_params.slice("ipv4", "hostname", "priority", "proxy_port", "proxy_username", "proxy_password").symbolize_keys
+      else
+        api_params.slice("ipv4", "ipv6", "hostname", "priority").symbolize_keys
+      end
     end
   end
 end

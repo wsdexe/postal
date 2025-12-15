@@ -32,10 +32,27 @@ class IPAddressesController < ApplicationController
     redirect_to_with_json [:edit, @ip_pool]
   end
 
+  def verify
+    unless @ip_pool.proxy?
+      redirect_to_with_json [:edit, @ip_pool], alert: "Verification is only available for proxy addresses."
+      return
+    end
+
+    if @ip_address.verify_proxy!
+      redirect_to_with_json [:edit, @ip_pool], notice: "Proxy verified successfully."
+    else
+      redirect_to_with_json [:edit, @ip_pool], alert: "Proxy verification failed: #{@ip_address.verification_error}"
+    end
+  end
+
   private
 
   def safe_params
-    params.require(:ip_address).permit(:ipv4, :ipv6, :hostname, :priority)
+    if @ip_pool.proxy?
+      params.require(:ip_address).permit(:ipv4, :hostname, :priority, :proxy_port, :proxy_username, :proxy_password)
+    else
+      params.require(:ip_address).permit(:ipv4, :ipv6, :hostname, :priority)
+    end
   end
 
 end

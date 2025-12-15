@@ -10,13 +10,14 @@ class IPPoolsController < ApplicationController
   end
 
   def new
-    @ip_pool = IPPool.new
+    @ip_pool = IPPool.new(pool_type: params[:pool_type] || "local")
   end
 
   def create
     @ip_pool = IPPool.new(safe_params)
     if @ip_pool.save
-      redirect_to_with_json [:edit, @ip_pool], notice: "IP Pool has been added successfully. You can now add IP addresses to it."
+      pool_type_label = @ip_pool.proxy? ? "Proxy" : "Local"
+      redirect_to_with_json [:edit, @ip_pool], notice: "#{pool_type_label} IP Pool has been added successfully. You can now add addresses to it."
     else
       render_form_errors "new", @ip_pool
     end
@@ -40,7 +41,7 @@ class IPPoolsController < ApplicationController
   private
 
   def safe_params
-    params.require(:ip_pool).permit(:name, :default)
+    params.require(:ip_pool).permit(:name, :default, :pool_type)
   end
 
 end

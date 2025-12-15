@@ -5,27 +5,77 @@
       = f.label :name, :class => 'fieldSet__label'
       .fieldSet__input= f.text_field :name, :autofocus => true, :class => 'input input--text'
 
+    - unless @ip_pool.persisted?
+      = f.hidden_field :pool_type
+      .fieldSet__field
+        %label.fieldSet__label Pool Type
+        .fieldSet__input
+          %p.fieldSet__text
+            = @ip_pool.pool_type.titleize
+            - if @ip_pool.proxy?
+              (SOCKS5 Proxy)
+            - else
+              (Direct IP Binding)
+
   - if @ip_pool.persisted?
-    %table.dataTable.u-margin-half
-      %thead
-        %tr
-          %td IPv4
-          %td IPv6
-          %td Hostname
-          %td Priority
-      %tbody
-        - ips = @ip_pool.ip_addresses.order_by_priority
-        - if ips.empty?
+    - if @ip_pool.local?
+      %h3.u-margin Local IP Addresses
+      %table.dataTable.u-margin-half
+        %thead
           %tr
-            %td.dataTable__empty{:colspan => 3} There are no IP addresses assigned to this pool yet.
-        - else
-          - for ip in ips
+            %td IPv4
+            %td IPv6
+            %td Hostname
+            %td Priority
+        %tbody
+          - ips = @ip_pool.ip_addresses.order_by_priority
+          - if ips.empty?
             %tr
-              %td{:width => "20%"}= link_to ip.ipv4, [:edit, @ip_pool, ip], :class => "u-link"
-              %td{:width => "35%"}= ip.ipv6
-              %td{:width => "35%"}= ip.hostname
-              %td{:width => "10%"}= ip.priority
-    %p= link_to "Add an IP address to pool", [:new, @ip_pool, :ip_address], :class => "u-link"
+              %td.dataTable__empty{:colspan => 4} There are no IP addresses assigned to this pool yet.
+          - else
+            - for ip in ips
+              %tr
+                %td{:width => "20%"}= link_to ip.ipv4, [:edit, @ip_pool, ip], :class => "u-link"
+                %td{:width => "30%"}= ip.ipv6
+                %td{:width => "35%"}= ip.hostname
+                %td{:width => "15%"}= ip.priority
+      %p= link_to "Add local IP address to pool", [:new, @ip_pool, :ip_address], :class => "u-link"
+    - else
+      %h3.u-margin Proxy Addresses
+      %table.dataTable.u-margin-half
+        %thead
+          %tr
+            %td IP
+            %td Port
+            %td Username
+            %td Hostname
+            %td Priority
+            %td Status
+            %td Actions
+        %tbody
+          - ips = @ip_pool.ip_addresses.order_by_priority
+          - if ips.empty?
+            %tr
+              %td.dataTable__empty{:colspan => 7} There are no proxy addresses assigned to this pool yet.
+          - else
+            - for ip in ips
+              %tr
+                %td{:width => "15%"}= link_to ip.ipv4, [:edit, @ip_pool, ip], :class => "u-link"
+                %td{:width => "8%"}= ip.proxy_port
+                %td{:width => "12%"}= ip.proxy_username.presence || "-"
+                %td{:width => "20%"}= ip.hostname
+                %td{:width => "8%"}= ip.priority
+                %td{:width => "12%"}
+                  - case ip.verification_status
+                  - when :verified
+                    %span.tag.tag--green Verified
+                  - when :failed
+                    %span.tag.tag--red{:title => ip.verification_error} Failed
+                  - else
+                    %span.tag Unverified
+                %td{:width => "15%"}
+                  = link_to "Verify", verify_ip_pool_ip_address_path(@ip_pool, ip), :method => :post, :class => "u-link", :remote => true
+      %p= link_to "Add proxy address to pool", [:new, @ip_pool, :ip_address], :class => "u-link"
 
 
   .fieldSetSubmit.buttonSet

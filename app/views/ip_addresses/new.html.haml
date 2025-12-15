@@ -1,6 +1,7 @@
 - page_title << "IP Pools"
 - page_title << @ip_pool.name
-- page_title << "Add new IP address"
+- add_title = @ip_pool.proxy? ? "Add proxy address" : "Add local IP address"
+- page_title << add_title
 .pageHeader
   %h1.pageHeader__title
     %span.pageHeader__titlePrevious
@@ -10,7 +11,7 @@
       &rarr;
       Edit
       &rarr;
-    Add new IP address
+    = add_title
 
 .pageContent.pageContent--compact
   = render 'form'
