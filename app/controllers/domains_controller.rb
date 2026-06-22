@@ -99,7 +99,7 @@ class DomainsController < ApplicationController
   end
 
   def check
-    if @domain.check_dns(:manual)
+    if @domain.check_dns(:manual, server: @server)
       redirect_to_with_json [organization, @server, :domains], notice: "Your DNS records for #{@domain.name} look good!"
     else
       redirect_to_with_json [:setup, organization, @server, @domain], alert: "There seems to be something wrong with your DNS records. Check below for information."

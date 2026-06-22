@@ -11,7 +11,7 @@ module ManagementAPI
     def index
       domains = @owner.domains.order(:name)
       render_success({
-        domains: domains.map { |domain| serialize_domain(domain) }
+        domains: domains.map { |domain| serialize_domain_for_owner(domain) }
       })
     end
 
@@ -20,7 +20,7 @@ module ManagementAPI
     # Get a single domain
     def show
       render_success({
-        domain: serialize_domain(@domain)
+        domain: serialize_domain_for_owner(@domain)
       })
     end
 
@@ -33,7 +33,7 @@ module ManagementAPI
 
       if domain.save
         render_success({
-          domain: serialize_domain(domain)
+          domain: serialize_domain_for_owner(domain)
         }, status: :created)
       else
         render_error "ValidationError",
@@ -48,7 +48,7 @@ module ManagementAPI
     def update
       if @domain.update(domain_params)
         render_success({
-          domain: serialize_domain(@domain)
+          domain: serialize_domain_for_owner(@domain)
         })
       else
         render_error "ValidationError",
@@ -73,7 +73,7 @@ module ManagementAPI
     def verify
       if @domain.verified?
         render_success({
-          domain: serialize_domain(@domain),
+          domain: serialize_domain_for_owner(@domain),
           message: "Domain is already verified"
         })
         return
@@ -82,7 +82,7 @@ module ManagementAPI
       if @domain.verification_method == "DNS"
         if @domain.verify_with_dns
           render_success({
-            domain: serialize_domain(@domain.reload),
+            domain: serialize_domain_for_owner(@domain.reload),
             message: "Domain verified successfully"
           })
         else
@@ -103,16 +103,16 @@ module ManagementAPI
     # POST /api/v2/organizations/:organization_id/domains/:id/check_dns
     # Check DNS records for a domain
     def check_dns
-      @domain.check_dns
+      @domain.check_dns(server: domain_server_context)
       @domain.save
 
       render_success({
-        domain: serialize_domain(@domain.reload),
+        domain: serialize_domain_for_owner(@domain.reload),
         dns_status: {
           spf: {
             status: @domain.spf_status,
             error: @domain.spf_error,
-            expected_record: @domain.spf_record
+            expected_record: @domain.spf_record(domain_server_context)
           },
           dkim: {
             status: @domain.dkim_status,
@@ -128,7 +128,7 @@ module ManagementAPI
             status: @domain.return_path_status,
             error: @domain.return_path_error,
             domain: @domain.return_path_domain,
-            expected_spf_record: @domain.return_path_spf_record,
+            expected_spf_record: @domain.return_path_spf_record(domain_server_context),
             expected_mx_records: @domain.return_path_mx_records
           }
         }
@@ -152,6 +152,14 @@ module ManagementAPI
     def find_domain
       @domain = @owner.domains.find_by(uuid: params[:id]) ||
                 @owner.domains.find(params[:id])
+    end
+
+    def serialize_domain_for_owner(domain)
+      serialize_domain(domain, server_context: domain_server_context)
+    end
+
+    def domain_server_context
+      @owner if @owner.is_a?(Server)
     end
 
     def domain_params

@@ -203,7 +203,7 @@ module ManagementAPI
     #
     # @param domain [Domain]
     # @return [Hash]
-    def serialize_domain(domain)
+    def serialize_domain(domain, server_context: nil)
       {
         id: domain.id,
         uuid: domain.uuid,
@@ -222,12 +222,12 @@ module ManagementAPI
         dkim_status: domain.dkim_status,
         mx_status: domain.mx_status,
         return_path_status: domain.return_path_status,
-        spf_record: domain.spf_record,
+        spf_record: domain.spf_record(server_context),
         dkim_record: domain.dkim_record,
         dkim_identifier: domain.dkim_identifier,
         dkim_record_name: domain.dkim_record_name,
         return_path_domain: domain.return_path_domain,
-        return_path_spf_record: domain.return_path_spf_record,
+        return_path_spf_record: domain.return_path_spf_record(server_context),
         return_path_mx_records: domain.return_path_mx_records,
         dns_checked_at: domain.dns_checked_at&.iso8601,
         created_at: domain.created_at&.iso8601,

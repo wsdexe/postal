@@ -12,11 +12,11 @@ module HasDNSChecks
     spf_status.present?
   end
 
-  def check_dns(source = :manual)
-    check_spf_record
+  def check_dns(source = :manual, server: nil)
+    check_spf_record(server: server)
     check_dkim_record
     check_mx_records
-    check_return_path_record
+    check_return_path_record(server: server)
     self.dns_checked_at = Time.now
     save!
     if source == :auto && !dns_ok? && owner.is_a?(Server)
@@ -42,17 +42,17 @@ module HasDNSChecks
   # SPF
   #
 
-  def check_spf_record
+  def check_spf_record(server: nil)
     result = resolver.txt(name)
     spf_records = result.grep(/\Av=spf1/)
     if spf_records.empty?
       self.spf_status = "Missing"
       self.spf_error = "No SPF record exists for this domain"
     else
-      suitable_spf_records = spf_records.select { |record| spf_record_satisfies_required_mechanisms?(record) }
+      suitable_spf_records = spf_records.select { |record| spf_record_satisfies_required_mechanisms?(record, server: server) }
       if suitable_spf_records.empty?
         self.spf_status = "Invalid"
-        self.spf_error = "An SPF record exists but it doesn't include #{spf_mechanisms.to_sentence}"
+        self.spf_error = "An SPF record exists but it doesn't include #{spf_mechanisms(server).to_sentence}"
         false
       else
         self.spf_status = "OK"
@@ -62,8 +62,8 @@ module HasDNSChecks
     end
   end
 
-  def check_spf_record!
-    check_spf_record
+  def check_spf_record!(server: nil)
+    check_spf_record(server: server)
     save!
   end
 
@@ -131,12 +131,12 @@ module HasDNSChecks
   # Return Path
   #
 
-  def check_return_path_record
+  def check_return_path_record(server: nil)
     spf_records = resolver.txt(return_path_domain).grep(/\Av=spf1/)
     mx_records = resolver.mx(return_path_domain).map { |_, host| normalize_dns_name(host) }
     required_mx_records = return_path_mx_records.map { |host| normalize_dns_name(host) }
     missing_mx_records = required_mx_records - mx_records
-    spf_valid = spf_records.any? { |record| spf_record_satisfies_required_mechanisms?(record) }
+    spf_valid = spf_records.any? { |record| spf_record_satisfies_required_mechanisms?(record, server: server) }
 
     if spf_records.empty? && mx_records.empty?
       self.return_path_status = "Missing"
@@ -149,7 +149,7 @@ module HasDNSChecks
       if spf_records.empty?
         errors << "There is no SPF record at #{return_path_domain}."
       elsif !spf_valid
-        errors << "The SPF record at #{return_path_domain} doesn't include #{spf_mechanisms.to_sentence}."
+        errors << "The SPF record at #{return_path_domain} doesn't include #{spf_mechanisms(server).to_sentence}."
       end
       if missing_mx_records.present?
         errors << "MX #{'record'.pluralize(missing_mx_records.size)} for #{missing_mx_records.to_sentence} #{missing_mx_records.size == 1 ? 'is' : 'are'} missing."
@@ -160,16 +160,16 @@ module HasDNSChecks
     end
   end
 
-  def check_return_path_record!
-    check_return_path_record
+  def check_return_path_record!(server: nil)
+    check_return_path_record(server: server)
     save!
   end
 
   private
 
-  def spf_record_satisfies_required_mechanisms?(record)
+  def spf_record_satisfies_required_mechanisms?(record, server: nil)
     record_mechanisms = record.to_s.split(/\s+/)
-    spf_mechanisms.all? { |mechanism| record_mechanisms.include?(mechanism) }
+    spf_mechanisms(server).all? { |mechanism| record_mechanisms.include?(mechanism) }
   end
 
   def normalize_dns_name(name)

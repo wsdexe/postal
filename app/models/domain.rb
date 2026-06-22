@@ -105,12 +105,12 @@ class Domain < ApplicationRecord
     end.flatten
   end
 
-  def spf_record
-    "v=spf1 #{spf_mechanisms.join(' ')} ~all"
+  def spf_record(server_context = nil)
+    "v=spf1 #{spf_mechanisms(server_context).join(' ')} ~all"
   end
 
-  def return_path_spf_record
-    spf_record
+  def return_path_spf_record(server_context = nil)
+    spf_record(server_context)
   end
 
   def return_path_mx_records
@@ -196,31 +196,32 @@ class Domain < ApplicationRecord
     self.dkim_identifier_string = self.class.random_dns_word if dkim_identifier_string.blank?
   end
 
-  def spf_mechanisms
-    mechanisms = spf_ip_mechanisms
+  def spf_mechanisms(server_context = nil)
+    mechanisms = spf_ip_mechanisms(server_context)
     mechanisms.presence || ["include:#{Postal::Config.dns.spf_include}"]
   end
 
-  def spf_ip_mechanisms
-    spf_ip_addresses.each_with_object([]) do |address, mechanisms|
+  def spf_ip_mechanisms(server_context = nil)
+    spf_ip_addresses(server_context).each_with_object([]) do |address, mechanisms|
       mechanisms << "ip4:#{address.ipv4}" if address.ipv4.present?
       mechanisms << "ip6:#{address.ipv6}" if address.ipv6.present?
     end.uniq
   end
 
-  def spf_ip_addresses
-    pools = spf_ip_pools
+  def spf_ip_addresses(server_context = nil)
+    pools = spf_ip_pools(server_context)
     return [] if pools.empty?
 
     IPAddress.where(ip_pool_id: pools.map(&:id)).order(:id).to_a
   end
 
-  def spf_ip_pools
-    case owner
+  def spf_ip_pools(server_context = nil)
+    spf_scope = server_context || owner || server
+    case spf_scope
     when Server
-      server_spf_ip_pools(owner)
+      server_spf_ip_pools(spf_scope)
     when Organization
-      organization_spf_ip_pools(owner)
+      organization_spf_ip_pools(spf_scope)
     else
       []
     end.compact.uniq
@@ -234,7 +235,9 @@ class Domain < ApplicationRecord
   end
 
   def organization_spf_ip_pools(organization)
-    organization.ip_pools.to_a + organization.ip_pool_rules.includes(:ip_pool).map(&:ip_pool)
+    organization.ip_pools.to_a +
+      organization.servers.present.includes(:ip_pool).map(&:ip_pool) +
+      organization.ip_pool_rules.includes(:ip_pool).map(&:ip_pool)
   end
 
   def update_verification_token_on_method_change

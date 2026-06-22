@@ -235,6 +235,41 @@ describe Domain do
         expect(domain.spf_record).to eq "v=spf1 ip4:192.0.2.10 ip6:2001:db8::10 ~all"
       end
     end
+
+    context "when an organization domain is rendered for a server with an IP pool" do
+      let(:organization) { create(:organization) }
+      let(:ip_pool) { create(:ip_pool, default: false) }
+      let(:server) { create(:server, organization: organization, ip_pool: ip_pool) }
+      let(:domain) { build(:domain, owner: organization) }
+
+      before do
+        organization.ip_pools << ip_pool
+        create(:ip_address, ip_pool: ip_pool, ipv4: "192.0.2.20", ipv6: nil)
+      end
+
+      it "returns an SPF record for the server IP pool addresses" do
+        expect(domain.spf_record(server)).to eq "v=spf1 ip4:192.0.2.20 ~all"
+      end
+    end
+
+    context "when the organization has a server with an IP pool" do
+      let(:organization) { create(:organization) }
+      let(:ip_pool) { create(:ip_pool, default: false) }
+      let!(:server) do
+        create(:server, organization: organization).tap do |server|
+          server.update_column(:ip_pool_id, ip_pool.id)
+        end
+      end
+      let(:domain) { build(:domain, owner: organization) }
+
+      before do
+        create(:ip_address, ip_pool: ip_pool, ipv4: "192.0.2.30", ipv6: nil)
+      end
+
+      it "returns an SPF record for the organization's server IP pool addresses" do
+        expect(domain.spf_record).to eq "v=spf1 ip4:192.0.2.30 ~all"
+      end
+    end
   end
 
   describe "#dkim_record" do
