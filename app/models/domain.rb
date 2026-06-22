@@ -184,10 +184,14 @@ class Domain < ApplicationRecord
     end
 
     def return_path_domain?(domain_name)
-      return false if domain_name.blank?
+      find_by_return_path_domain(domain_name).present?
+    end
+
+    def find_by_return_path_domain(domain_name)
+      return nil if domain_name.blank?
 
       normalized_domain = domain_name.to_s.downcase
-      where("LOWER(CONCAT(dkim_identifier_string, '.', name)) = ?", normalized_domain).exists?
+      where("LOWER(CONCAT(dkim_identifier_string, '.', name)) = ?", normalized_domain).first
     end
 
   end

@@ -324,10 +324,12 @@ module SMTPServer
 
       uname, tag = uname.split("+", 2)
 
-      if domain == Postal::Config.dns.return_path_domain || Domain.return_path_domain?(domain)
+      return_path_domain = Domain.find_by_return_path_domain(domain)
+
+      if domain == Postal::Config.dns.return_path_domain || return_path_domain
         # This is a return path
         @state = :rcpt_to_received
-        if server = ::Server.where(token: uname).first
+        if server = return_path_server_for(uname, return_path_domain)
           if server.suspended?
             increment_error_count("server-suspended")
             "535 Mail server has been suspended"
@@ -565,6 +567,15 @@ module SMTPServer
 
     def increment_command_count(command)
       increment_prometheus_counter :postal_smtp_server_commands_total, labels: { command: command }
+    end
+
+    def return_path_server_for(uname, return_path_domain = nil)
+      if return_path_domain
+        return return_path_domain.owner if return_path_domain.owner.is_a?(::Server)
+        return return_path_domain.server if return_path_domain.server
+      end
+
+      ::Server.where(token: uname).first
     end
 
     def increment_message_count(type)

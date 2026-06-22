@@ -64,14 +64,14 @@ module SMTPServer
         it "returns an error if the server is suspended" do
           server = create(:server, :suspended)
           domain = create(:domain, owner: server, name: "suspended-return-path.com", dkim_identifier_string: "table")
-          address = "#{server.token}@#{domain.return_path_domain}"
+          address = "bounce@#{domain.return_path_domain}"
           expect(client.handle("RCPT TO: #{address}")).to eq "535 Mail server has been suspended"
         end
 
         it "adds a recipient if all OK" do
           server = create(:server)
           domain = create(:domain, owner: server, name: "active-return-path.com", dkim_identifier_string: "table")
-          address = "#{server.token}@#{domain.return_path_domain}"
+          address = "bounce@#{domain.return_path_domain}"
           expect(client.handle("RCPT TO: #{address}")).to eq "250 OK"
           expect(client.recipients).to eq [[:bounce, address, server]]
           expect(client.state).to eq :rcpt_to_received
