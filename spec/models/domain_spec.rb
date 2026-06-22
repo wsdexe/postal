@@ -270,6 +270,53 @@ describe Domain do
         expect(domain.spf_record).to eq "v=spf1 ip4:192.0.2.30 ~all"
       end
     end
+
+    context "when the server sends through an IP pool rule" do
+      let(:organization) { create(:organization) }
+      let(:ip_pool) { create(:ip_pool, default: false) }
+      let(:server) { create(:server, organization: organization) }
+      let(:domain) { build(:domain, owner: server) }
+
+      before do
+        organization.ip_pools << ip_pool
+        create(:ip_pool_rule, owner: server, ip_pool: ip_pool, from_text: "example.com")
+        create(:ip_address, ip_pool: ip_pool, ipv4: "192.0.2.40", ipv6: nil)
+      end
+
+      it "returns an SPF record for the rule IP pool addresses" do
+        expect(domain.spf_record).to eq "v=spf1 ip4:192.0.2.40 ~all"
+      end
+    end
+
+    context "when an organization domain can use a server IP pool rule" do
+      let(:organization) { create(:organization) }
+      let(:ip_pool) { create(:ip_pool, default: false) }
+      let(:server) { create(:server, organization: organization) }
+      let(:domain) { build(:domain, owner: organization) }
+
+      before do
+        organization.ip_pools << ip_pool
+        create(:ip_pool_rule, owner: server, ip_pool: ip_pool, from_text: "example.com")
+        create(:ip_address, ip_pool: ip_pool, ipv4: "192.0.2.50", ipv6: nil)
+      end
+
+      it "returns an SPF record for the server rule IP pool addresses" do
+        expect(domain.spf_record).to eq "v=spf1 ip4:192.0.2.50 ~all"
+      end
+    end
+
+    context "when no IP pool addresses are available but the SMTP hostname resolves" do
+      let(:resolver) { instance_double(DNSResolver, a: ["192.0.2.60"], aaaa: ["2001:db8::60"]) }
+
+      before do
+        allow(Postal::Config.postal).to receive(:smtp_hostname).and_return("mail.example.com")
+        allow(DNSResolver).to receive(:local).and_return(resolver)
+      end
+
+      it "returns an SPF record for the resolved SMTP hostname addresses" do
+        expect(domain.spf_record).to eq "v=spf1 ip4:192.0.2.60 ip6:2001:db8::60 ~all"
+      end
+    end
   end
 
   describe "#dkim_record" do

@@ -37,6 +37,7 @@
 #
 
 require "resolv"
+require "ipaddr"
 
 class Domain < ApplicationRecord
 
@@ -46,6 +47,7 @@ class Domain < ApplicationRecord
 
   DNS_LABEL_REGEX = /\A[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\z/
   RANDOM_WORDS_PATH = Rails.root.join("resource", "randomwords.txt")
+  DEFAULT_SPF_DNS_HOSTNAMES = %w[postal.example.com mx1.postal.example.com mx2.postal.example.com].freeze
 
   VERIFICATION_EMAIL_ALIASES = %w[webmaster postmaster admin administrator hostmaster].freeze
   VERIFICATION_METHODS = %w[DNS Email].freeze
@@ -198,6 +200,7 @@ class Domain < ApplicationRecord
 
   def spf_mechanisms(server_context = nil)
     mechanisms = spf_ip_mechanisms(server_context)
+    mechanisms = spf_dns_host_ip_mechanisms if mechanisms.empty?
     mechanisms.presence || ["include:#{Postal::Config.dns.spf_include}"]
   end
 
@@ -231,13 +234,48 @@ class Domain < ApplicationRecord
     pools = [server.ip_pool]
     pools += server.ip_pool_rules.includes(:ip_pool).map(&:ip_pool)
     pools += server.organization.ip_pool_rules.includes(:ip_pool).map(&:ip_pool)
-    pools
+    pools.compact.presence || server.organization.ip_pools.to_a
   end
 
   def organization_spf_ip_pools(organization)
-    organization.ip_pools.to_a +
-      organization.servers.present.includes(:ip_pool).map(&:ip_pool) +
-      organization.ip_pool_rules.includes(:ip_pool).map(&:ip_pool)
+    servers = organization.servers.present.includes(:ip_pool).to_a
+    server_rule_pools = IPPoolRule.where(owner_type: "Server", owner_id: servers.map(&:id))
+                                  .includes(:ip_pool)
+                                  .map(&:ip_pool)
+
+    pools = servers.map(&:ip_pool) +
+            server_rule_pools +
+            organization.ip_pool_rules.includes(:ip_pool).map(&:ip_pool)
+    pools.compact.presence || organization.ip_pools.to_a
+  end
+
+  def spf_dns_host_ip_mechanisms
+    spf_dns_host_ip_addresses.each_with_object([]) do |address, mechanisms|
+      ip_address = IPAddr.new(address)
+      mechanisms << "#{ip_address.ipv4? ? 'ip4' : 'ip6'}:#{address}"
+    rescue IPAddr::InvalidAddressError
+      next
+    end.uniq
+  end
+
+  def spf_dns_host_ip_addresses
+    return [] if spf_dns_hostnames.empty?
+
+    resolver = DNSResolver.local
+    spf_dns_hostnames.flat_map do |hostname|
+      resolver.a(hostname) + resolver.aaaa(hostname)
+    rescue StandardError
+      []
+    end.uniq
+  rescue StandardError
+    []
+  end
+
+  def spf_dns_hostnames
+    ([Postal::Config.postal.smtp_hostname] + Array(Postal::Config.dns.mx_records)).filter_map do |hostname|
+      hostname = hostname.to_s.downcase.strip.chomp(".")
+      hostname if hostname.present? && !DEFAULT_SPF_DNS_HOSTNAMES.include?(hostname)
+    end.uniq
   end
 
   def update_verification_token_on_method_change
