@@ -49,10 +49,10 @@ module HasDNSChecks
       self.spf_status = "Missing"
       self.spf_error = "No SPF record exists for this domain"
     else
-      suitable_spf_records = spf_records.grep(/include:\s*#{Regexp.escape(Postal::Config.dns.spf_include)}/)
+      suitable_spf_records = spf_records.select { |record| spf_record_satisfies_required_mechanisms?(record) }
       if suitable_spf_records.empty?
         self.spf_status = "Invalid"
-        self.spf_error = "An SPF record exists but it doesn't include #{Postal::Config.dns.spf_include}"
+        self.spf_error = "An SPF record exists but it doesn't include #{spf_mechanisms.to_sentence}"
         false
       else
         self.spf_status = "OK"
@@ -132,22 +132,48 @@ module HasDNSChecks
   #
 
   def check_return_path_record
-    records = resolver.cname(return_path_domain)
-    if records.empty?
+    spf_records = resolver.txt(return_path_domain).grep(/\Av=spf1/)
+    mx_records = resolver.mx(return_path_domain).map { |_, host| normalize_dns_name(host) }
+    required_mx_records = return_path_mx_records.map { |host| normalize_dns_name(host) }
+    missing_mx_records = required_mx_records - mx_records
+    spf_valid = spf_records.any? { |record| spf_record_satisfies_required_mechanisms?(record) }
+
+    if spf_records.empty? && mx_records.empty?
       self.return_path_status = "Missing"
-      self.return_path_error = "There is no return path record at #{return_path_domain}"
-    elsif records.size == 1 && records.first == Postal::Config.dns.return_path_domain
+      self.return_path_error = "There are no return path records at #{return_path_domain}"
+    elsif spf_valid && missing_mx_records.empty?
       self.return_path_status = "OK"
       self.return_path_error = nil
     else
+      errors = []
+      if spf_records.empty?
+        errors << "There is no SPF record at #{return_path_domain}."
+      elsif !spf_valid
+        errors << "The SPF record at #{return_path_domain} doesn't include #{spf_mechanisms.to_sentence}."
+      end
+      if missing_mx_records.present?
+        errors << "MX #{'record'.pluralize(missing_mx_records.size)} for #{missing_mx_records.to_sentence} #{missing_mx_records.size == 1 ? 'is' : 'are'} missing."
+      end
+
       self.return_path_status = "Invalid"
-      self.return_path_error = "There is a CNAME record at #{return_path_domain} but it points to #{records.first} which is incorrect. It should point to #{Postal::Config.dns.return_path_domain}."
+      self.return_path_error = errors.join(" ")
     end
   end
 
   def check_return_path_record!
     check_return_path_record
     save!
+  end
+
+  private
+
+  def spf_record_satisfies_required_mechanisms?(record)
+    record_mechanisms = record.to_s.split(/\s+/)
+    spf_mechanisms.all? { |mechanism| record_mechanisms.include?(mechanism) }
+  end
+
+  def normalize_dns_name(name)
+    name.to_s.downcase.chomp(".")
   end
 
 end

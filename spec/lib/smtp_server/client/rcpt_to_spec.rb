@@ -54,21 +54,24 @@ module SMTPServer
         end
       end
 
-      context "when the RCPT TO address is on a host using the return path prefix" do
+      context "when the RCPT TO address is on a domain return path host" do
         it "returns an error if the server does not exist" do
-          address = "nothing@#{Postal::Config.dns.custom_return_path_prefix}.example.com"
+          domain = create(:domain, name: "example-return-path.com", dkim_identifier_string: "table")
+          address = "nothing@#{domain.return_path_domain}"
           expect(client.handle("RCPT TO: #{address}")).to eq "550 Invalid server token"
         end
 
         it "returns an error if the server is suspended" do
           server = create(:server, :suspended)
-          address = "#{server.token}@#{Postal::Config.dns.custom_return_path_prefix}.example.com"
+          domain = create(:domain, owner: server, name: "suspended-return-path.com", dkim_identifier_string: "table")
+          address = "#{server.token}@#{domain.return_path_domain}"
           expect(client.handle("RCPT TO: #{address}")).to eq "535 Mail server has been suspended"
         end
 
         it "adds a recipient if all OK" do
           server = create(:server)
-          address = "#{server.token}@#{Postal::Config.dns.custom_return_path_prefix}.example.com"
+          domain = create(:domain, owner: server, name: "active-return-path.com", dkim_identifier_string: "table")
+          address = "#{server.token}@#{domain.return_path_domain}"
           expect(client.handle("RCPT TO: #{address}")).to eq "250 OK"
           expect(client.recipients).to eq [[:bounce, address, server]]
           expect(client.state).to eq :rcpt_to_received

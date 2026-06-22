@@ -60,7 +60,8 @@ describe Domain do
 
   describe "creation" do
     it "creates a new dkim identifier string" do
-      expect { domain.save }.to change { domain.dkim_identifier_string }.from(nil).to(match(/\A[a-zA-Z0-9]{6}\z/))
+      allow(described_class).to receive(:random_dns_word).and_return("table")
+      expect { domain.save }.to change { domain.dkim_identifier_string }.from(nil).to("table")
     end
 
     it "generates a new dkim key" do
@@ -215,8 +216,24 @@ describe Domain do
   end
 
   describe "#spf_record" do
-    it "returns the SPF record" do
-      expect(domain.spf_record).to eq "v=spf1 a mx include:#{Postal::Config.dns.spf_include} ~all"
+    it "returns the default SPF record when no IP pool addresses are available" do
+      expect(domain.spf_record).to eq "v=spf1 include:#{Postal::Config.dns.spf_include} ~all"
+    end
+
+    context "when the domain belongs to a server with an IP pool" do
+      let(:organization) { create(:organization) }
+      let(:ip_pool) { create(:ip_pool, default: false) }
+      let(:server) { create(:server, organization: organization, ip_pool: ip_pool) }
+      let(:domain) { build(:domain, owner: server) }
+
+      before do
+        organization.ip_pools << ip_pool
+        create(:ip_address, ip_pool: ip_pool, ipv4: "192.0.2.10", ipv6: "2001:db8::10")
+      end
+
+      it "returns an SPF record for the server IP pool addresses" do
+        expect(domain.spf_record).to eq "v=spf1 ip4:192.0.2.10 ip6:2001:db8::10 ~all"
+      end
     end
   end
 
@@ -251,7 +268,7 @@ describe Domain do
       end
 
       it "returns the DKIM identifier" do
-        expect(domain.dkim_identifier).to eq "#{Postal::Config.dns.dkim_identifier}-#{domain.dkim_identifier_string}"
+        expect(domain.dkim_identifier).to eq domain.dkim_identifier_string
       end
     end
   end
@@ -269,14 +286,15 @@ describe Domain do
       end
 
       it "returns the DKIM identifier" do
-        expect(domain.dkim_record_name).to eq "#{Postal::Config.dns.dkim_identifier}-#{domain.dkim_identifier_string}._domainkey"
+        expect(domain.dkim_record_name).to eq "#{domain.dkim_identifier_string}._domainkey"
       end
     end
   end
 
   describe "#return_path_domain" do
     it "returns the return path domain" do
-      expect(domain.return_path_domain).to eq "#{Postal::Config.dns.custom_return_path_prefix}.#{domain.name}"
+      domain.dkim_identifier_string = "table"
+      expect(domain.return_path_domain).to eq "table.#{domain.name}"
     end
   end
 

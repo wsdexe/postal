@@ -324,7 +324,7 @@ module SMTPServer
 
       uname, tag = uname.split("+", 2)
 
-      if domain == Postal::Config.dns.return_path_domain || domain =~ /\A#{Regexp.escape(Postal::Config.dns.custom_return_path_prefix)}\./
+      if domain == Postal::Config.dns.return_path_domain || Domain.return_path_domain?(domain)
         # This is a return path
         @state = :rcpt_to_received
         if server = ::Server.where(token: uname).first

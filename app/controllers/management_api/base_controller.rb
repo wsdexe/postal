@@ -224,8 +224,11 @@ module ManagementAPI
         return_path_status: domain.return_path_status,
         spf_record: domain.spf_record,
         dkim_record: domain.dkim_record,
+        dkim_identifier: domain.dkim_identifier,
         dkim_record_name: domain.dkim_record_name,
         return_path_domain: domain.return_path_domain,
+        return_path_spf_record: domain.return_path_spf_record,
+        return_path_mx_records: domain.return_path_mx_records,
         dns_checked_at: domain.dns_checked_at&.iso8601,
         created_at: domain.created_at&.iso8601,
         updated_at: domain.updated_at&.iso8601

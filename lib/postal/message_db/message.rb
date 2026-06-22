@@ -511,7 +511,8 @@ module Postal
       # Was thsi message sent to a return path?
       #
       def rcpt_to_return_path?
-        !!(rcpt_to =~ /@#{Regexp.escape(Postal::Config.dns.custom_return_path_prefix)}\./)
+        _, domain = rcpt_to.to_s.split("@", 2)
+        domain == Postal::Config.dns.return_path_domain || Domain.return_path_domain?(domain)
       end
 
       #

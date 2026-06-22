@@ -127,7 +127,9 @@ module ManagementAPI
           return_path: {
             status: @domain.return_path_status,
             error: @domain.return_path_error,
-            domain: @domain.return_path_domain
+            domain: @domain.return_path_domain,
+            expected_spf_record: @domain.return_path_spf_record,
+            expected_mx_records: @domain.return_path_mx_records
           }
         }
       })

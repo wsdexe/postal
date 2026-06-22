@@ -44,6 +44,9 @@ class Domain < ApplicationRecord
 
   include HasDNSChecks
 
+  DNS_LABEL_REGEX = /\A[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\z/
+  RANDOM_WORDS_PATH = Rails.root.join("resource", "randomwords.txt")
+
   VERIFICATION_EMAIL_ALIASES = %w[webmaster postmaster admin administrator hostmaster].freeze
   VERIFICATION_METHODS = %w[DNS Email].freeze
 
@@ -55,8 +58,7 @@ class Domain < ApplicationRecord
   validates :name, presence: true, format: { with: /\A[a-z0-9\-.]*\z/ }, uniqueness: { case_sensitive: false, scope: [:owner_type, :owner_id], message: "is already added" }
   validates :verification_method, inclusion: { in: VERIFICATION_METHODS }
 
-  random_string :dkim_identifier_string, type: :chars, length: 6, unique: true, upper_letters_only: true
-
+  before_validation :assign_dkim_identifier_string, on: :create
   before_create :generate_dkim_key
 
   scope :verified, -> { where.not(verified_at: nil) }
@@ -104,7 +106,15 @@ class Domain < ApplicationRecord
   end
 
   def spf_record
-    "v=spf1 a mx include:#{Postal::Config.dns.spf_include} ~all"
+    "v=spf1 #{spf_mechanisms.join(' ')} ~all"
+  end
+
+  def return_path_spf_record
+    spf_record
+  end
+
+  def return_path_mx_records
+    Postal::Config.dns.mx_records
   end
 
   def dkim_record
@@ -117,7 +127,7 @@ class Domain < ApplicationRecord
   def dkim_identifier
     return nil unless dkim_identifier_string
 
-    Postal::Config.dns.dkim_identifier + "-#{dkim_identifier_string}"
+    dkim_identifier_string.downcase
   end
 
   def dkim_record_name
@@ -128,7 +138,7 @@ class Domain < ApplicationRecord
   end
 
   def return_path_domain
-    "#{Postal::Config.dns.custom_return_path_prefix}.#{name}"
+    "#{dkim_identifier}.#{name}"
   end
 
   # Returns a DNSResolver instance that can be used to perform DNS lookups needed for
@@ -158,7 +168,74 @@ class Domain < ApplicationRecord
     false
   end
 
+  class << self
+
+    def random_dns_word
+      random_dns_words.sample || raise(Postal::Error, "No DNS-safe words found in #{RANDOM_WORDS_PATH}")
+    end
+
+    def random_dns_words
+      @random_dns_words ||= File.readlines(RANDOM_WORDS_PATH, chomp: true).filter_map do |word|
+        word = word.strip.downcase
+        word if word.match?(DNS_LABEL_REGEX)
+      end.uniq
+    end
+
+    def return_path_domain?(domain_name)
+      return false if domain_name.blank?
+
+      normalized_domain = domain_name.to_s.downcase
+      where("LOWER(CONCAT(dkim_identifier_string, '.', name)) = ?", normalized_domain).exists?
+    end
+
+  end
+
   private
+
+  def assign_dkim_identifier_string
+    self.dkim_identifier_string = self.class.random_dns_word if dkim_identifier_string.blank?
+  end
+
+  def spf_mechanisms
+    mechanisms = spf_ip_mechanisms
+    mechanisms.presence || ["include:#{Postal::Config.dns.spf_include}"]
+  end
+
+  def spf_ip_mechanisms
+    spf_ip_addresses.each_with_object([]) do |address, mechanisms|
+      mechanisms << "ip4:#{address.ipv4}" if address.ipv4.present?
+      mechanisms << "ip6:#{address.ipv6}" if address.ipv6.present?
+    end.uniq
+  end
+
+  def spf_ip_addresses
+    pools = spf_ip_pools
+    return [] if pools.empty?
+
+    IPAddress.where(ip_pool_id: pools.map(&:id)).order(:id).to_a
+  end
+
+  def spf_ip_pools
+    case owner
+    when Server
+      server_spf_ip_pools(owner)
+    when Organization
+      organization_spf_ip_pools(owner)
+    else
+      []
+    end.compact.uniq
+  end
+
+  def server_spf_ip_pools(server)
+    pools = [server.ip_pool]
+    pools += server.ip_pool_rules.includes(:ip_pool).map(&:ip_pool)
+    pools += server.organization.ip_pool_rules.includes(:ip_pool).map(&:ip_pool)
+    pools
+  end
+
+  def organization_spf_ip_pools(organization)
+    organization.ip_pools.to_a + organization.ip_pool_rules.includes(:ip_pool).map(&:ip_pool)
+  end
 
   def update_verification_token_on_method_change
     return unless verification_method_changed?
