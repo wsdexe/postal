@@ -108,8 +108,9 @@ describe Server do
       expect { server.save }.to change { server.uuid }.from(nil).to(/[a-f0-9-]{36}/)
     end
 
-    it "generates a token" do
-      expect { server.save }.to change { server.token }.from(nil).to(/[a-z0-9]{6}/)
+    it "generates a token from the random word list" do
+      allow(Domain).to receive(:random_dns_word).and_return("table")
+      expect { server.save }.to change { server.token }.from(nil).to("table")
     end
 
     it "provisions a database" do
