@@ -116,7 +116,7 @@ class Domain < ApplicationRecord
   end
 
   def return_path_mx_records
-    Postal::Config.dns.mx_records
+    [return_path_domain]
   end
 
   def dkim_record

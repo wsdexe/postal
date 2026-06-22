@@ -380,6 +380,13 @@ describe Domain do
     end
   end
 
+  describe "#return_path_mx_records" do
+    it "returns the return path domain as the MX target" do
+      domain.dkim_identifier_string = "table"
+      expect(domain.return_path_mx_records).to eq ["table.#{domain.name}"]
+    end
+  end
+
   describe "#dns_verification_string" do
     let(:domain) { create(:domain, verification_method: "DNS") }
 

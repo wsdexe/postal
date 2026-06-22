@@ -85,6 +85,10 @@
     All records should be priority <b>10</b>.
   %pre.codeBlock.u-margin= @domain.return_path_mx_records.join("\n")
 
+  %p.pageContent__text
+    You should also add an <b>A</b> record at <b>#{@domain.return_path_domain}</b> pointing to the current Postal server IP address.
+    This A record is not checked automatically.
+
 
   %h3.pageContent__subTitle MX Records
   - if @domain.mx_status == 'OK'
