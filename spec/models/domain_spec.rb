@@ -380,10 +380,94 @@ describe Domain do
     end
   end
 
+  describe "#mx_records" do
+    it "returns the return path domain as the MX target" do
+      domain.dkim_identifier_string = "table"
+      expect(domain.mx_records).to eq ["table.#{domain.name}"]
+    end
+  end
+
+  describe "#check_mx_records" do
+    let(:domain) { build(:domain, name: "example.com", dkim_identifier_string: "table") }
+    let(:resolver) { instance_double(DNSResolver) }
+
+    before do
+      allow(domain).to receive(:resolver).and_return(resolver)
+    end
+
+    context "when the domain MX points to the return path domain" do
+      before do
+        allow(resolver).to receive(:mx).with("example.com").and_return([[10, "table.example.com"]])
+      end
+
+      it "marks MX as OK" do
+        domain.check_mx_records
+        expect(domain.mx_status).to eq "OK"
+        expect(domain.mx_error).to be_nil
+      end
+    end
+  end
+
   describe "#return_path_mx_records" do
     it "returns the return path domain as the MX target" do
       domain.dkim_identifier_string = "table"
       expect(domain.return_path_mx_records).to eq ["table.#{domain.name}"]
+    end
+  end
+
+  describe "#return_path_a_records" do
+    let(:organization) { create(:organization) }
+    let(:ip_pool) { create(:ip_pool, default: false) }
+    let(:server) { create(:server, organization: organization, ip_pool: ip_pool) }
+    let(:domain) { build(:domain, owner: server) }
+
+    before do
+      organization.ip_pools << ip_pool
+      create(:ip_address, ip_pool: ip_pool, ipv4: "192.0.2.70", ipv6: "2001:db8::70")
+    end
+
+    it "returns the IPv4 addresses from the server IP pool" do
+      expect(domain.return_path_a_records).to eq ["192.0.2.70"]
+    end
+  end
+
+  describe "#check_return_path_record" do
+    let(:organization) { create(:organization) }
+    let(:ip_pool) { create(:ip_pool, default: false) }
+    let(:server) { create(:server, organization: organization, ip_pool: ip_pool) }
+    let(:domain) { build(:domain, owner: server, name: "example.com", dkim_identifier_string: "table") }
+    let(:resolver) { instance_double(DNSResolver) }
+
+    before do
+      organization.ip_pools << ip_pool
+      create(:ip_address, ip_pool: ip_pool, ipv4: "192.0.2.80", ipv6: nil)
+      allow(domain).to receive(:resolver).and_return(resolver)
+      allow(resolver).to receive(:txt).with("table.example.com").and_return(["v=spf1 ip4:192.0.2.80 ~all"])
+      allow(resolver).to receive(:mx).with("table.example.com").and_return([[10, "table.example.com"]])
+    end
+
+    context "when the return path A record points to the server IP" do
+      before do
+        allow(resolver).to receive(:a).with("table.example.com").and_return(["192.0.2.80"])
+      end
+
+      it "marks the return path as OK" do
+        domain.check_return_path_record(server: server)
+        expect(domain.return_path_status).to eq "OK"
+        expect(domain.return_path_error).to be_nil
+      end
+    end
+
+    context "when the return path A record is missing" do
+      before do
+        allow(resolver).to receive(:a).with("table.example.com").and_return([])
+      end
+
+      it "marks the return path as invalid" do
+        domain.check_return_path_record(server: server)
+        expect(domain.return_path_status).to eq "Invalid"
+        expect(domain.return_path_error).to include("There is no A record at table.example.com.")
+      end
     end
   end
 

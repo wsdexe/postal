@@ -115,8 +115,16 @@ class Domain < ApplicationRecord
     spf_record(server_context)
   end
 
+  def mx_records
+    [return_path_domain]
+  end
+
   def return_path_mx_records
     [return_path_domain]
+  end
+
+  def return_path_a_records(server_context = nil)
+    spf_ip_addresses(server_context).filter_map(&:ipv4).uniq
   end
 
   def dkim_record

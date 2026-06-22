@@ -122,14 +122,16 @@ module ManagementAPI
           },
           mx: {
             status: @domain.mx_status,
-            error: @domain.mx_error
+            error: @domain.mx_error,
+            expected_records: @domain.mx_records
           },
           return_path: {
             status: @domain.return_path_status,
             error: @domain.return_path_error,
             domain: @domain.return_path_domain,
             expected_spf_record: @domain.return_path_spf_record(domain_server_context),
-            expected_mx_records: @domain.return_path_mx_records
+            expected_mx_records: @domain.return_path_mx_records,
+            expected_a_records: @domain.return_path_a_records(domain_server_context)
           }
         }
       })

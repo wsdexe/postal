@@ -103,16 +103,17 @@ module HasDNSChecks
   #
 
   def check_mx_records
-    records = resolver.mx(name).map(&:last)
+    records = resolver.mx(name).map { |_, host| normalize_dns_name(host) }
+    required_mx_records = mx_records.map { |host| normalize_dns_name(host) }
     if records.empty?
       self.mx_status = "Missing"
       self.mx_error = "There are no MX records for #{name}"
     else
-      missing_records = Postal::Config.dns.mx_records.dup - records.map { |r| r.to_s.downcase }
+      missing_records = required_mx_records - records
       if missing_records.empty?
         self.mx_status = "OK"
         self.mx_error = nil
-      elsif missing_records.size == Postal::Config.dns.mx_records.size
+      elsif missing_records.size == required_mx_records.size
         self.mx_status = "Missing"
         self.mx_error = "You have MX records but none of them point to us."
       else
@@ -135,13 +136,16 @@ module HasDNSChecks
     spf_records = resolver.txt(return_path_domain).grep(/\Av=spf1/)
     mx_records = resolver.mx(return_path_domain).map { |_, host| normalize_dns_name(host) }
     required_mx_records = return_path_mx_records.map { |host| normalize_dns_name(host) }
+    a_records = resolver.a(return_path_domain).map(&:to_s)
+    required_a_records = return_path_a_records(server).map(&:to_s)
     missing_mx_records = required_mx_records - mx_records
+    missing_a_records = required_a_records - a_records
     spf_valid = spf_records.any? { |record| spf_record_satisfies_required_mechanisms?(record, server: server) }
 
-    if spf_records.empty? && mx_records.empty?
+    if spf_records.empty? && mx_records.empty? && a_records.empty?
       self.return_path_status = "Missing"
       self.return_path_error = "There are no return path records at #{return_path_domain}"
-    elsif spf_valid && missing_mx_records.empty?
+    elsif spf_valid && missing_mx_records.empty? && missing_a_records.empty?
       self.return_path_status = "OK"
       self.return_path_error = nil
     else
@@ -153,6 +157,13 @@ module HasDNSChecks
       end
       if missing_mx_records.present?
         errors << "MX #{'record'.pluralize(missing_mx_records.size)} for #{missing_mx_records.to_sentence} #{missing_mx_records.size == 1 ? 'is' : 'are'} missing."
+      end
+      if required_a_records.present?
+        if a_records.empty?
+          errors << "There is no A record at #{return_path_domain}."
+        elsif missing_a_records.present?
+          errors << "The A record at #{return_path_domain} doesn't include #{missing_a_records.to_sentence}."
+        end
       end
 
       self.return_path_status = "Invalid"
