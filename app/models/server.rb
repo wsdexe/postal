@@ -66,6 +66,7 @@ class Server < ApplicationRecord
   has_many :track_domains, dependent: :destroy
   has_many :ip_pool_rules, dependent: :destroy, as: :owner
 
+  random_string :token, type: :chars, length: 6, unique: true, upper_letters_only: true
   default_value :permalink, -> { name ? name.parameterize : nil }
   default_value :raw_message_retention_days, -> { 30 }
   default_value :raw_message_retention_size, -> { 2048 }
@@ -76,11 +77,9 @@ class Server < ApplicationRecord
   validates :name, presence: true, uniqueness: { scope: :organization_id, case_sensitive: false }
   validates :mode, inclusion: { in: MODES }
   validates :permalink, presence: true, uniqueness: { scope: :organization_id, case_sensitive: false }, format: { with: /\A[a-z0-9-]*\z/ }, exclusion: { in: RESERVED_PERMALINKS }
-  validates :token, presence: true, uniqueness: { case_sensitive: false }, format: { with: Domain::DNS_LABEL_REGEX }
   validate :validate_ip_pool_belongs_to_organization
 
   before_validation(on: :create) do
-    self.token = self.class.random_token if token.blank?
     self.token = token.downcase if token
   end
 
@@ -323,13 +322,6 @@ class Server < ApplicationRecord
           hash[type] += 1
           server.send_limit_warning(type)
         end
-      end
-    end
-
-    def random_token
-      loop do
-        token = Domain.random_dns_word
-        return token unless where(token: token).exists?
       end
     end
 
