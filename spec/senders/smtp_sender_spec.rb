@@ -30,6 +30,7 @@ RSpec.describe SMTPSender do
       end
       allow(endpoint).to receive(:finish_smtp_session)
       allow(endpoint).to receive(:reset_smtp_session)
+      allow(endpoint).to receive(:started?).and_return(true)
       allow(endpoint).to receive(:smtp_client) do
         Net::SMTP.new(endpoint.ip_address, endpoint.server.port)
       end
@@ -359,6 +360,51 @@ RSpec.describe SMTPSender do
         it "resets the endpoint SMTP sesssion" do
           sender.send_message(message)
           expect(sender.endpoints.last).to have_received(:reset_smtp_session)
+        end
+      end
+
+      context "when the SMTP server returns 421 and closes the transmission channel" do
+        let(:send_errors) { [Net::SMTPServerBusy.new("421 4.7.1 deferred"), nil] }
+
+        before do
+          endpoint = sender.endpoints.last
+          allow(endpoint).to receive(:started?).and_return(true, false)
+          allow(endpoint).to receive(:send_message) do
+            if error = send_errors.shift
+              raise error
+            end
+
+            smtp_send_message_result
+          end
+        end
+
+        it "does not reconnect and send the next message in the same batch" do
+          expect(sender.send_message(message)).to have_attributes(type: "SoftFail", connect_error: true)
+          expect(sender.send_message(message)).to have_attributes(type: "SoftFail", connect_error: true)
+          expect(sender.endpoints.last).to have_received(:finish_smtp_session)
+          expect(sender.endpoints.last).not_to have_received(:reset_smtp_session)
+          expect(sender.endpoints.last).to have_received(:start_smtp_session).once
+          expect(sender.endpoints.last).to have_received(:send_message).once
+        end
+      end
+
+      context "when the SMTP session is not available while sending" do
+        let(:smtp_send_message_error) { proc { SMTPClient::Endpoint::SMTPSessionNotStartedError.new("SMTP session closed") } }
+
+        it "returns a connection-level SoftFail" do
+          result = sender.send_message(message)
+          expect(result).to have_attributes(
+            type: "SoftFail",
+            retry: true,
+            connect_error: true,
+            output: "SMTP session closed"
+          )
+        end
+
+        it "finishes the endpoint SMTP session" do
+          sender.send_message(message)
+          expect(sender.endpoints.last).to have_received(:finish_smtp_session)
+          expect(sender.endpoints.last).not_to have_received(:reset_smtp_session)
         end
       end
 

@@ -54,6 +54,15 @@ class SMTPSender < BaseSender
       end
     end
 
+    unless @current_endpoint.started?
+      return create_result("SoftFail") do |r|
+        r.retry = true
+        r.details = "The SMTP session to #{@current_endpoint} is no longer available."
+        r.output = "SMTP session closed"
+        r.connect_error = true
+      end
+    end
+
     mail_from = determine_mail_from_for_message(message)
     raw_message = message.raw_message
 
@@ -95,11 +104,12 @@ class SMTPSender < BaseSender
     end
   rescue Net::SMTPServerBusy, Net::SMTPAuthenticationError, Net::SMTPSyntaxError, Net::SMTPUnknownError, Net::ReadTimeout => e
     logger.error "#{e.class}: #{e.message}"
-    @current_endpoint.reset_smtp_session
+    session_unavailable = reset_or_finish_smtp_session_after(e)
 
     create_result("SoftFail", start_time) do |r|
       r.details = "Temporary SMTP delivery error when sending to #{@current_endpoint}"
       r.output = e.message
+      r.connect_error = true if session_unavailable
       if e.message =~ /(\d+) seconds/
         r.retry = ::Regexp.last_match(1).to_i + 10
       elsif e.message =~ /(\d+) minutes/
@@ -116,6 +126,16 @@ class SMTPSender < BaseSender
       r.details = "Permanent SMTP delivery error when sending to #{@current_endpoint}"
       r.output = e.message
     end
+  rescue SMTPClient::Endpoint::SMTPSessionNotStartedError => e
+    logger.error "#{e.class}: #{e.message}"
+    @current_endpoint.finish_smtp_session
+
+    create_result("SoftFail", start_time) do |r|
+      r.retry = true
+      r.details = "The SMTP session to #{@current_endpoint} is no longer available."
+      r.output = e.message
+      r.connect_error = true
+    end
   rescue StandardError => e
     logger.error "#{e.class}: #{e.message}"
     @current_endpoint.reset_smtp_session
@@ -130,6 +150,26 @@ class SMTPSender < BaseSender
       r.details = "An error occurred while sending the message to #{@current_endpoint}"
       r.output = e.message
     end
+  end
+
+  def reset_or_finish_smtp_session_after(error)
+    if smtp_closing_transmission_channel?(error)
+      @current_endpoint.finish_smtp_session
+      true
+    else
+      @current_endpoint.reset_smtp_session
+      !@current_endpoint.started?
+    end
+  end
+
+  def smtp_closing_transmission_channel?(error)
+    smtp_response_status(error) == "421" || error.message.to_s.start_with?("421 ")
+  end
+
+  def smtp_response_status(error)
+    return unless error.respond_to?(:response)
+
+    error.response&.status&.to_s
   end
 
   # Return the MAIL FROM which should be used for the given message

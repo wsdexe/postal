@@ -31,6 +31,12 @@ module SMTPClient
       description
     end
 
+    def started?
+      @smtp_client&.started? || false
+    rescue StandardError
+      false
+    end
+
     # Return true if this is an IPv6 address
     #
     # @return [Boolean]

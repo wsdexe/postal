@@ -60,6 +60,23 @@ module SMTPClient
       end
     end
 
+    describe "#started?" do
+      it "returns false when the SMTP client has not been created" do
+        expect(endpoint.started?).to be false
+      end
+
+      it "returns true when the SMTP client has been started" do
+        endpoint.start_smtp_session
+        expect(endpoint.started?).to be true
+      end
+
+      it "returns false when checking the SMTP client raises an error" do
+        endpoint.start_smtp_session
+        allow(endpoint.smtp_client).to receive(:started?).and_raise(StandardError)
+        expect(endpoint.started?).to be false
+      end
+    end
+
     describe "#start_smtp_session" do
       context "when given no source IP address" do
         it "creates a new Net::SMTP client with appropriate details" do
