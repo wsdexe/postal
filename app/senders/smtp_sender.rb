@@ -122,9 +122,17 @@ class SMTPSender < BaseSender
     logger.error "#{e.class}: #{e.message}"
     @current_endpoint.reset_smtp_session
 
-    create_result("HardFail", start_time) do |r|
-      r.details = "Permanent SMTP delivery error when sending to #{@current_endpoint}"
-      r.output = e.message
+    if retryable_fatal_smtp_error?(e)
+      create_result("SoftFail", start_time) do |r|
+        r.retry = true
+        r.details = "Retryable SMTP delivery error when sending to #{@current_endpoint}"
+        r.output = e.message
+      end
+    else
+      create_result("HardFail", start_time) do |r|
+        r.details = "Permanent SMTP delivery error when sending to #{@current_endpoint}"
+        r.output = e.message
+      end
     end
   rescue SMTPClient::Endpoint::SMTPSessionNotStartedError => e
     logger.error "#{e.class}: #{e.message}"
@@ -170,6 +178,17 @@ class SMTPSender < BaseSender
     return unless error.respond_to?(:response)
 
     error.response&.status&.to_s
+  end
+
+  def retryable_fatal_smtp_error?(error)
+    apple_local_policy_cs01_error?(error)
+  end
+
+  def apple_local_policy_cs01_error?(error)
+    status = smtp_response_status(error)
+    return false unless status.nil? || %w[550 554].include?(status)
+
+    error.message.to_s.match?(/\b(?:550|554)?\s*5\.7\.1\s+\[CS01\]\s+Message rejected due to local policy\b/i)
   end
 
   # Return the MAIL FROM which should be used for the given message

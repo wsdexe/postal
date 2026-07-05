@@ -527,6 +527,32 @@ RSpec.describe SMTPSender do
         end
       end
 
+      context "when Apple returns a CS01 local policy fatal error" do
+        let(:smtp_send_message_error) do
+          proc do
+            Net::SMTPFatalError.new(
+              "554 5.7.1 [CS01] Message rejected due to local policy. " \
+              "Please visit https://support.apple.com/en-us/HT204137. Txn ID abc"
+            )
+          end
+        end
+
+        it "returns a SoftFail with retry enabled" do
+          result = sender.send_message(message)
+          expect(result).to have_attributes(
+            type: "SoftFail",
+            retry: true,
+            output: /554 5\.7\.1 \[CS01\]/,
+            details: /Retryable SMTP delivery error when sending/
+          )
+        end
+
+        it "resets the endpoint SMTP session" do
+          sender.send_message(message)
+          expect(sender.endpoints.last).to have_received(:reset_smtp_session)
+        end
+      end
+
       context "when there is an unexpected error" do
         let(:smtp_send_message_error) { proc { ZeroDivisionError.new("divided by 0") } }
 
