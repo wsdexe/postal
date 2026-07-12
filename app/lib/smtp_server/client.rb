@@ -324,12 +324,13 @@ module SMTPServer
 
       uname, tag = uname.split("+", 2)
 
+      main_return_path_server = main_return_path_server_for(uname, domain)
       return_path_domain = Domain.find_by_return_path_domain(domain)
 
-      if domain == Postal::Config.dns.return_path_domain || return_path_domain
+      if domain == Postal::Config.dns.return_path_domain || return_path_domain || main_return_path_server
         # This is a return path
         @state = :rcpt_to_received
-        if server = return_path_server_for(uname, return_path_domain)
+        if server = main_return_path_server || return_path_server_for(uname, return_path_domain)
           if server.suspended?
             increment_error_count("server-suspended")
             "535 Mail server has been suspended"
@@ -576,6 +577,23 @@ module SMTPServer
       end
 
       ::Server.where(token: uname).first
+    end
+
+    def main_return_path_server_for(uname, domain_name)
+      server = ::Server.find_by(token: uname)
+      return unless server
+
+      domain = ::Domain.verified
+                       .where("LOWER(name) = ?", domain_name.to_s.downcase)
+                       .where(
+                         "(owner_type = 'Server' AND owner_id = ?) OR " \
+                         "(owner_type = 'Organization' AND owner_id = ?) OR server_id = ?",
+                         server.id,
+                         server.organization_id,
+                         server.id
+                       )
+
+      server if domain.exists?
     end
 
     def increment_message_count(type)

@@ -147,7 +147,8 @@ module ManagementAPI
         :message_retention_days, :raw_message_retention_days, :raw_message_retention_size,
         :allow_sender, :log_smtp_data, :postmaster_address,
         :spam_threshold, :spam_failure_threshold, :outbound_spam_threshold,
-        :ip_pool_id, :privacy_mode, :domains_not_to_click_track
+        :ip_pool_id, :privacy_mode, :domains_not_to_click_track,
+        :use_main_domain_for_return_path
       )
     end
   end

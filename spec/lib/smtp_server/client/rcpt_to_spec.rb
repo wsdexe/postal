@@ -78,6 +78,39 @@ module SMTPServer
         end
       end
 
+      context "when the RCPT TO address is on the main domain return path" do
+        it "adds a bounce recipient for a server using the main domain" do
+          server = create(:server, use_main_domain_for_return_path: true)
+          domain = create(:domain, owner: server, name: "main-return-path.com")
+          address = "#{server.token}@#{domain.name}"
+
+          expect(client.handle("RCPT TO: #{address}")).to eq "250 OK"
+          expect(client.recipients).to eq [[:bounce, address, server]]
+          expect(client.state).to eq :rcpt_to_received
+        end
+
+        it "continues accepting delayed bounces after the option is disabled" do
+          server = create(:server, use_main_domain_for_return_path: false)
+          domain = create(:domain, owner: server, name: "disabled-main-return-path.com")
+          address = "#{server.token}@#{domain.name}"
+
+          expect(client.handle("RCPT TO: #{address}")).to eq "250 OK"
+          expect(client.recipients).to eq [[:bounce, address, server]]
+        end
+
+        it "prefers the token owner when a main domain matches another server's return-path subdomain" do
+          main_domain_server = create(:server)
+          main_domain = create(:domain, owner: main_domain_server, name: "news.example.com")
+
+          subdomain_server = create(:server)
+          create(:domain, owner: subdomain_server, name: "example.com", dkim_identifier_string: "news")
+
+          address = "#{main_domain_server.token}@#{main_domain.name}"
+          expect(client.handle("RCPT TO: #{address}")).to eq "250 OK"
+          expect(client.recipients).to eq [[:bounce, address, main_domain_server]]
+        end
+      end
+
       context "when the RCPT TO address is within the route domain" do
         it "returns an error if the route token is invalid" do
           address = "nothing@#{Postal::Config.dns.route_domain}"

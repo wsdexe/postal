@@ -25,6 +25,11 @@
             = f.select :privacy_mode, [["Disabled", false], ["Enabled", true]], {}, :class => 'input input--select'
             %p.fieldSet__text If enabled, when Postal adds Received headers to e-mails it will not include IP or hostname information of the client submitting the message.
         .fieldSet__field
+          = f.label :use_main_domain_for_return_path, "Return Path", :class => 'fieldSet__label'
+          .fieldSet__input
+            = f.select :use_main_domain_for_return_path, [["Subdomain", false], ["Domain", true]], {}, :class => 'input input--select'
+            %p.fieldSet__text Choose whether MAIL FROM uses the return-path subdomain or the main sending domain.
+        .fieldSet__field
           = f.label :log_smtp_data, "Log SMTP data?", :class => 'fieldSet__label'
           .fieldSet__input
             = f.select :log_smtp_data, [["No", false], ["Yes - log all SMTP DATA (debug only)", true]], {}, :class => 'input input--select'

@@ -257,27 +257,44 @@ RSpec.describe SMTPSender do
           end
         end
 
-        context "if the domain has a valid custom return path" do
-          let(:domain) { create(:domain, return_path_status: "OK") }
+        context "if the server uses the main domain for its return path" do
+          let(:server) { create(:server, use_main_domain_for_return_path: true) }
 
-          it "sends the custom return path as MAIL FROM" do
+          it "uses the server token at the main domain as MAIL FROM" do
             sender.send_message(message)
             expect(sender.endpoints.last).to have_received(:send_message).with(
               kind_of(String),
-              "#{server.token}@#{domain.return_path_domain}",
+              "#{server.token}@#{domain.name}",
               ["john@example.com"]
             )
           end
         end
 
-        context "if the domain has no valid custom return path" do
-          it "sends the server default return path as MAIL FROM" do
-            sender.send_message(message)
-            expect(sender.endpoints.last).to have_received(:send_message).with(
-              kind_of(String),
-              "#{server.token}@#{Postal::Config.dns.return_path_domain}",
-              ["john@example.com"]
-            )
+        context "if the server uses a return-path subdomain" do
+          let(:server) { create(:server, use_main_domain_for_return_path: false) }
+
+          context "if the domain has a valid custom return path" do
+            let(:domain) { create(:domain, server: server, return_path_status: "OK") }
+
+            it "uses the custom return-path subdomain as MAIL FROM" do
+              sender.send_message(message)
+              expect(sender.endpoints.last).to have_received(:send_message).with(
+                kind_of(String),
+                "#{server.token}@#{domain.return_path_domain}",
+                ["john@example.com"]
+              )
+            end
+          end
+
+          context "if the domain has no valid custom return path" do
+            it "uses the server default return path as MAIL FROM" do
+              sender.send_message(message)
+              expect(sender.endpoints.last).to have_received(:send_message).with(
+                kind_of(String),
+                "#{server.token}@#{Postal::Config.dns.return_path_domain}",
+                ["john@example.com"]
+              )
+            end
           end
         end
 
@@ -309,7 +326,7 @@ RSpec.describe SMTPSender do
           it "adds the resent-sender header" do
             sender.send_message(message)
             expect(sender.endpoints.last).to have_received(:send_message).with(
-              "Resent-Sender: #{server.token}@#{Postal::Config.dns.return_path_domain}\r\n#{message.raw_message}",
+              "Resent-Sender: #{server.token}@#{domain.name}\r\n#{message.raw_message}",
               kind_of(String),
               kind_of(Array)
             )

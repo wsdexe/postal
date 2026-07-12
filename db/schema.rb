@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2024_12_02_000001) do
+ActiveRecord::Schema[7.0].define(version: 2026_07_13_000000) do
   create_table "additional_route_endpoints", id: :integer, charset: "utf8mb4", collation: "utf8mb4_general_ci", force: :cascade do |t|
     t.integer "route_id"
     t.string "endpoint_type"
@@ -128,6 +128,11 @@ ActiveRecord::Schema[7.0].define(version: 2024_12_02_000001) do
     t.datetime "updated_at"
     t.string "hostname"
     t.integer "priority"
+    t.integer "proxy_port", default: 1080
+    t.string "proxy_username"
+    t.string "proxy_password"
+    t.datetime "verified_at"
+    t.string "verification_error"
   end
 
   create_table "ip_pool_rules", id: :integer, charset: "utf8mb4", collation: "utf8mb4_general_ci", force: :cascade do |t|
@@ -253,6 +258,7 @@ ActiveRecord::Schema[7.0].define(version: 2024_12_02_000001) do
     t.string "suspension_reason"
     t.boolean "log_smtp_data", default: false
     t.boolean "privacy_mode", default: false
+    t.boolean "use_main_domain_for_return_path", default: true, null: false
     t.index ["organization_id"], name: "index_servers_on_organization_id"
     t.index ["permalink"], name: "index_servers_on_permalink", length: 6
     t.index ["token"], name: "index_servers_on_token", length: 6
