@@ -18,6 +18,7 @@
 #  privacy_mode                       :boolean          default(FALSE)
 #  raw_message_retention_days         :integer
 #  raw_message_retention_size         :integer
+#  received_header                    :string(255)      default("from api (10-42-11-130.email.vs-ru.svc.cluster.local [10.42.11.130]) by VS with HTTP"), not null
 #  send_limit                         :integer
 #  send_limit_approaching_at          :datetime
 #  send_limit_approaching_notified_at :datetime
@@ -69,6 +70,12 @@ describe Server do
     it { is_expected.to validate_inclusion_of(:mode).in_array(Server::MODES) }
     it { is_expected.to validate_uniqueness_of(:permalink).scoped_to(:organization_id).case_insensitive }
     it { is_expected.to validate_exclusion_of(:permalink).in_array(Server::RESERVED_PERMALINKS) }
+    it { is_expected.to validate_presence_of(:received_header) }
+    it { is_expected.to validate_length_of(:received_header).is_at_most(255) }
+    it { is_expected.to allow_value("from api (api.internal [10.0.0.1]) by VS with HTTP").for(:received_header) }
+    it { is_expected.not_to allow_value("from api\r\nBcc: victim@example.com").for(:received_header) }
+    it { is_expected.not_to allow_value("Received: from api by VS with HTTP").for(:received_header) }
+    it { is_expected.not_to allow_value("from api by VS with HTTP; Mon, 13 Jul 2026").for(:received_header) }
     it { is_expected.to allow_value("hello").for(:permalink) }
     it { is_expected.to allow_value("hello-world").for(:permalink) }
     it { is_expected.to allow_value("hello1234").for(:permalink) }

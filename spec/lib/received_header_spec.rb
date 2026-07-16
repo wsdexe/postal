@@ -45,4 +45,14 @@ describe ReceivedHeader do
       end
     end
   end
+
+  describe ".generate_outgoing" do
+    it "uses the server's manual header value and adds the current timestamp" do
+      server = Server.new(received_header: "from custom-gateway by VS with HTTP")
+
+      result = described_class.generate_outgoing(server)
+
+      expect(result).to eq "from custom-gateway by VS with HTTP; #{Time.now.utc.rfc2822}"
+    end
+  end
 end

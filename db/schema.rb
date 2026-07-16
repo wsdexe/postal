@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2026_07_13_000000) do
+ActiveRecord::Schema[7.0].define(version: 2026_07_17_000000) do
   create_table "additional_route_endpoints", id: :integer, charset: "utf8mb4", collation: "utf8mb4_general_ci", force: :cascade do |t|
     t.integer "route_id"
     t.string "endpoint_type"
@@ -259,6 +259,7 @@ ActiveRecord::Schema[7.0].define(version: 2026_07_13_000000) do
     t.boolean "log_smtp_data", default: false
     t.boolean "privacy_mode", default: false
     t.boolean "use_main_domain_for_return_path", default: true, null: false
+    t.string "received_header", default: "from api (10-42-11-130.email.vs-ru.svc.cluster.local [10.42.11.130]) by VS with HTTP", null: false
     t.index ["organization_id"], name: "index_servers_on_organization_id"
     t.index ["permalink"], name: "index_servers_on_permalink", length: 6
     t.index ["token"], name: "index_servers_on_token", length: 6

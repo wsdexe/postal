@@ -18,6 +18,7 @@
 #  privacy_mode                       :boolean          default(FALSE)
 #  raw_message_retention_days         :integer
 #  raw_message_retention_size         :integer
+#  received_header                    :string(255)      default("from api (10-42-11-130.email.vs-ru.svc.cluster.local [10.42.11.130]) by VS with HTTP"), not null
 #  send_limit                         :integer
 #  send_limit_approaching_at          :datetime
 #  send_limit_approaching_notified_at :datetime
@@ -78,7 +79,11 @@ class Server < ApplicationRecord
   validates :mode, inclusion: { in: MODES }
   validates :permalink, presence: true, uniqueness: { scope: :organization_id, case_sensitive: false }, format: { with: /\A[a-z0-9-]*\z/ }, exclusion: { in: RESERVED_PERMALINKS }
   validates :token, presence: true, uniqueness: { case_sensitive: false }, format: { with: Domain::DNS_LABEL_REGEX }
+  validates :received_header, presence: true, length: { maximum: 255 }
   validate :validate_ip_pool_belongs_to_organization
+  validate :validate_received_header
+
+  before_validation :strip_received_header
 
   before_validation(on: :create) do
     self.token = self.class.random_token if token.blank?
@@ -300,6 +305,24 @@ class Server < ApplicationRecord
   end
 
   private
+
+  def strip_received_header
+    self.received_header = received_header&.strip
+  end
+
+  def validate_received_header
+    return if received_header.blank?
+
+    unless received_header.valid_encoding? && received_header.ascii_only? && !received_header.match?(/[[:cntrl:]]/)
+      errors.add :received_header, "must contain only printable ASCII characters on one line"
+    end
+    if received_header.match?(/\Areceived\s*:/i)
+      errors.add :received_header, "must not include the Received: field name"
+    end
+    if received_header.include?(";")
+      errors.add :received_header, "must not include a semicolon or timestamp"
+    end
+  end
 
   def validate_ip_pool_belongs_to_organization
     return unless ip_pool && ip_pool_id_changed? && !organization.ip_pools.include?(ip_pool)

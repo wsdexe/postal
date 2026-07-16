@@ -39,7 +39,34 @@ module SMTPServer
         client.handle("RCPT TO: #{route.name}@#{route.domain.name}")
         Timecop.freeze do
           client.handle("DATA")
-          expect(client.headers["received"]).to include "from test.example.com (1.2.3.4 [1.2.3.4]) by #{Postal::Config.postal.smtp_hostname} with SMTP; #{Time.now.utc.rfc2822}"
+          expect(client.headers["received"]).to include "from api (10-42-11-130.email.vs-ru.svc.cluster.local [10.42.11.130]) by VS with HTTP; #{Time.now.utc.rfc2822}"
+        end
+      end
+
+      it "uses the authenticated server's manual header for outgoing SMTP" do
+        server = create(:server, received_header: "from custom-smtp-gateway by VS with HTTP")
+        credential = create(:credential, server: server, type: "SMTP")
+        client.handle("HELO test.example.com")
+        client.handle("AUTH PLAIN #{credential.to_smtp_plain}")
+        client.handle("MAIL FROM: test@test.com")
+        client.handle("RCPT TO: test@example.com")
+
+        Timecop.freeze do
+          client.handle("DATA")
+          expect(client.headers["received"]).to eq ["from custom-smtp-gateway by VS with HTTP; #{Time.now.utc.rfc2822}"]
+        end
+      end
+
+      it "uses the SMTP-IP server's manual header for outgoing SMTP" do
+        server = create(:server, received_header: "from custom-ip-gateway by VS with HTTP")
+        create(:credential, server: server, type: "SMTP-IP", key: ip_address)
+        client.handle("HELO test.example.com")
+        client.handle("MAIL FROM: test@test.com")
+        client.handle("RCPT TO: test@example.com")
+
+        Timecop.freeze do
+          client.handle("DATA")
+          expect(client.headers["received"]).to eq ["from custom-ip-gateway by VS with HTTP; #{Time.now.utc.rfc2822}"]
         end
       end
 
@@ -75,7 +102,7 @@ module SMTPServer
             client.handle("This is some content for the message.")
             client.handle("It will keep going.")
             expect(client.instance_variable_get("@data")).to eq <<~DATA
-              Received: from test.example.com (1.2.3.4 [1.2.3.4]) by #{Postal::Config.postal.smtp_hostname} with SMTP; #{Time.now.utc.rfc2822}\r
+              Received: from api (10-42-11-130.email.vs-ru.svc.cluster.local [10.42.11.130]) by VS with HTTP; #{Time.now.utc.rfc2822}\r
               Subject: Test\r
               \r
               This is some content for the message.\r

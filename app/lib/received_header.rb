@@ -9,6 +9,10 @@ class ReceivedHeader
 
   class << self
 
+    def generate_outgoing(server)
+      "#{server.received_header}; #{Time.now.utc.rfc2822}"
+    end
+
     def generate(server, helo, ip_address, method)
       our_hostname = OUR_HOSTNAMES[method]
       if our_hostname.nil?

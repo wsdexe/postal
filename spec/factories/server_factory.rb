@@ -18,6 +18,7 @@
 #  privacy_mode                       :boolean          default(FALSE)
 #  raw_message_retention_days         :integer
 #  raw_message_retention_size         :integer
+#  received_header                    :string(255)      default("from api (10-42-11-130.email.vs-ru.svc.cluster.local [10.42.11.130]) by VS with HTTP"), not null
 #  send_limit                         :integer
 #  send_limit_approaching_at          :datetime
 #  send_limit_approaching_notified_at :datetime

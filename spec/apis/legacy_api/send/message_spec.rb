@@ -37,7 +37,7 @@ RSpec.describe "Legacy Send API", type: :request do
     end
 
     context "when the credential is valid" do
-      let(:server) { create(:server) }
+      let(:server) { create(:server, received_header: "from custom-api-gateway by VS with HTTP") }
       let(:credential) { create(:credential, server: server) }
       let(:domain) { create(:domain, owner: server) }
 
@@ -196,7 +196,7 @@ RSpec.describe "Legacy Send API", type: :request do
             parsed_body = JSON.parse(response.body)
             message_id = parsed_body["data"]["messages"]["test@example.com"]["id"]
             message = server.message(message_id)
-            expect(message.headers["received"].first).to match(/\Afrom api/)
+            expect(message.headers["received"].first).to match(/\Afrom custom-api-gateway by VS with HTTP; /)
           end
 
           it "creates appropriate message objects" do

@@ -25,6 +25,14 @@
             = f.select :privacy_mode, [["Disabled", false], ["Enabled", true]], {}, :class => 'input input--select'
             %p.fieldSet__text If enabled, when Postal adds Received headers to e-mails it will not include IP or hostname information of the client submitting the message.
         .fieldSet__field
+          = f.label :received_header, "Outgoing Received header", :class => 'fieldSet__label'
+          .fieldSet__input
+            = f.text_field :received_header, :class => 'input input--text', :maxlength => 255
+            %p.fieldSet__text
+              Enter the complete manual value between <code>Received:</code> and the timestamp. Postal adds the field name,
+              semicolon, and current timestamp automatically. This applies only to outgoing messages submitted through the
+              message API, web interface, or authenticated SMTP. Incoming SMTP and the raw API are unchanged.
+        .fieldSet__field
           = f.label :use_main_domain_for_return_path, "Return Path", :class => 'fieldSet__label'
           .fieldSet__input
             = f.select :use_main_domain_for_return_path, [["Subdomain", false], ["Domain", true]], {}, :class => 'input input--select'

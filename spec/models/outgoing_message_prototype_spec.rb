@@ -19,4 +19,19 @@ describe OutgoingMessagePrototype do
     expect(message[:id]).to be_a Integer
     expect(message[:token]).to be_a String
   end
+
+  it "uses the server's manual header without requiring a credential" do
+    server.received_header = "from web-test-gateway by VS with HTTP"
+    domain = create(:domain, owner: server)
+    prototype = described_class.new(server, "127.0.0.1", "web-ui", {
+      from: "test@#{domain.name}",
+      to: "test@example.com",
+      subject: "Test Message",
+      plain_body: "A plain body!"
+    })
+
+    expect(Mail.new(prototype.raw_message).header["Received"].decoded).to match(
+      /\Afrom web-test-gateway by VS with HTTP; /
+    )
+  end
 end
