@@ -198,10 +198,8 @@ class SMTPSender < BaseSender
   def determine_mail_from_for_message(message)
     return "" if message.bounce
 
-    if message.server.use_main_domain_for_return_path?
-      return "#{message.server.token}@#{message.domain.name}"
-    end
-
+    # If the domain has a valid custom return path configured, return
+    # that.
     if message.domain.return_path_status == "OK"
       return "#{message.server.token}@#{message.domain.return_path_domain}"
     end

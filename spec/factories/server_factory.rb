@@ -29,7 +29,6 @@
 #  suspended_at                       :datetime
 #  suspension_reason                  :string(255)
 #  token                              :string(255)
-#  use_main_domain_for_return_path    :boolean          default(TRUE), not null
 #  uuid                               :string(255)
 #  created_at                         :datetime
 #  updated_at                         :datetime

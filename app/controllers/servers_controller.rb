@@ -54,7 +54,6 @@ class ServersController < ApplicationController
         :message_retention_days,
         :raw_message_retention_days,
         :raw_message_retention_size,
-        :use_main_domain_for_return_path,
         :received_header,
       ]
     end

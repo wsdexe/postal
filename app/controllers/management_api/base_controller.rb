@@ -174,7 +174,6 @@ module ManagementAPI
         organization_permalink: server.organization&.permalink,
         ip_pool_id: server.ip_pool_id,
         privacy_mode: server.privacy_mode,
-        use_main_domain_for_return_path: server.use_main_domain_for_return_path,
         created_at: server.created_at&.iso8601,
         updated_at: server.updated_at&.iso8601
       }
