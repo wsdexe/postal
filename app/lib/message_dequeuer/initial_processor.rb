@@ -57,7 +57,12 @@ module MessageDequeuer
     def find_other_messages_for_batch
       return unless Postal::Config.postal.batch_queued_messages?
 
-      @other_messages = @queued_message.batchable_messages(100)
+      batch_size = [Postal::Config.postal.queued_message_batch_size.to_i, 1].max
+      @other_messages = if batch_size == 1
+                          []
+                        else
+                          @queued_message.batchable_messages(batch_size - 1)
+                        end
       log "found #{@other_messages.size} associated messages to process at the same time", batch_key: @queued_message.batch_key
     rescue StandardError
       @queued_message.unlock

@@ -71,6 +71,14 @@ module MessageDequeuer
           end
           processor.process
         end
+
+        it "uses the configured batch size as the total including the initial message" do
+          allow(Postal::Config.postal).to receive(:queued_message_batch_size).and_return(1_000)
+          allow(SingleMessageProcessor).to receive(:process)
+          expect(queued_message).to receive(:batchable_messages).with(999).and_return([])
+
+          processor.process
+        end
       end
 
       context "when postal.batch_queued_messages is disabled" do
