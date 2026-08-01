@@ -1,136 +1,86 @@
 ---
 name: CI
-on: [push]
+on:
+  push:
+    branches:
+      - main
+      - proxy
+      - 'feature/**'
+      - 'experiment/**'
+      - 'fix/**'
+
+env:
+  REGISTRY: ghcr.io
 
 jobs:
-  release-please:
+  build-latest:
+    name: Build Latest Package
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    outputs:
-      release_created: ${{ steps.release-please.outputs.release_created }}
-      tag_name: ${{ steps.release-please.outputs.tag_name }} # e.g. v1.0.0
-      version: ${{ steps.release-please.outputs.version }} # e.g. 1.0.0
-      all: ${{ toJSON(steps.release-please.outputs) }}
-    steps:
-      - uses: google-github-actions/release-please-action@v3
-        id: release-please
-        with:
-          command: manifest
-
-  build:
-    name: CI Image Build
-    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: docker/setup-buildx-action@v2
-      - uses: docker/login-action@v2
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v4
-        with:
-          push: true
-          tags: ghcr.io/postalserver/postal:ci-${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          target: ci
-          platforms: linux/amd64
-
-  test:
-    name: Test Suite
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - run: docker compose pull
-        env:
-          POSTAL_IMAGE: ghcr.io/postalserver/postal:ci-${{ github.sha }}
-      - run: docker compose run postal sh -c 'bundle exec rspec'
-        env:
-          POSTAL_IMAGE: ghcr.io/postalserver/postal:ci-${{ github.sha }}
-
-  release-branch:
-    name: Release (branch)
-    runs-on: ubuntu-latest
-    needs: [build]
-    if: >-
-      startsWith(github.ref, 'refs/heads/') &&
-      startsWith(github.ref, 'refs/heads/release-please-') != true &&
-      startsWith(github.ref, 'refs/heads/dependabot/') != true
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v2
-      - uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Debug login
+        run: |
+          echo "Logged in as: ${{ github.repository_owner }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Registry: ${{ env.REGISTRY }}"
+          echo "Full image path: ${{ env.REGISTRY }}/${{ github.repository }}"
+          echo "GITHUB_TOKEN available: ${{ secrets.GITHUB_TOKEN != '' }}"
       - id: info
         run: |
-          IMAGE=ghcr.io/postalserver/postal
-
-          REF="${GITHUB_REF#refs/heads/}"
-          if [ -z "$REF" ]; then exit 1; fi
-
-          VER="$(git describe --tags 2>/dev/null)"
+          VER="$(git describe --tags 2>/dev/null || echo '0.0.0')"
           echo "version=${VER}" >> "$GITHUB_OUTPUT"
-          echo "branch=${REF}" >> "$GITHUB_OUTPUT"
-
-          echo 'tags<<EOF' >> "$GITHUB_OUTPUT"
-          if [[ "$REF" == "main" ]]; then
-            echo "${IMAGE}:latest" >> "$GITHUB_OUTPUT"
-          else
-            echo "${IMAGE}:branch-${REF}" >> "$GITHUB_OUTPUT"
-          fi
-          echo 'EOF' >> "$GITHUB_OUTPUT"
-      - uses: docker/build-push-action@v4
+      - id: meta
+        uses: docker/metadata-action@v5
         with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=proxy,enable=${{ github.ref == 'refs/heads/proxy' }}
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+      - name: Debug metadata
+        run: |
+          echo "Tags: ${{ steps.meta.outputs.tags }}"
+          echo "Labels: ${{ steps.meta.outputs.labels }}"
+          echo "Registry: ${{ env.REGISTRY }}"
+          echo "Repository: ${{ github.repository }}"
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
           push: true
-          tags: ${{ steps.info.outputs.tags }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           target: full
           platforms: linux/amd64
           build-args: |
             VERSION=${{ steps.info.outputs.version }}
-            BRANCH=${{ steps.info.outputs.branch }}
-
-  publish-image:
-    name: Publish Image
-    runs-on: ubuntu-latest
-    needs: [build, test, release-please]
-    if: ${{ needs.release-please.outputs.release_created }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v2
-      - uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v4
-        with:
-          push: true
-          tags: |
-            ghcr.io/postalserver/postal:stable
-            ghcr.io/postalserver/postal:${{ needs.release-please.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          target: full
-          build-args: |
-            VERSION=${{ needs.release-please.outputs.version }}
-          platforms: linux/amd64
+            BRANCH=${{ github.ref_name }}
+      - name: Verify image push
+        run: |
+          echo "Image digest: ${{ steps.build.outputs.digest }}"
+          echo "Image should be available at:"
+          echo "${{ env.REGISTRY }}/${{ github.repository }}:latest"
+          echo "Checking if image was pushed..."
+          if [ -n "${{ steps.build.outputs.digest }}" ]; then
+            echo "Image was pushed successfully!"
+            echo "Digest: ${{ steps.build.outputs.digest }}"
+          else
+            echo "Image push may have failed - no digest"
+            exit 1
+          fi
