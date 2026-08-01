@@ -51,8 +51,8 @@ RSpec.describe "Legacy Send API", type: :request do
             sender: "sender@#{domain.name}",
             tag: "test-tag",
             reply_to: "reply@example.com",
-            plain_body: "plain text",
-            html_body: "<p>html</p>",
+            plain_body: Base64.strict_encode64("plain text"),
+            html_body: Base64.strict_encode64("<p>html</p>"),
             attachments: [{ name: "test1.txt", content_type: "text/plain", data: Base64.encode64("hello world 1") },
                           { name: "test2.txt", content_type: "text/plain", data: Base64.encode64("hello world 2") },],
             headers: { "x-test-header-1" => "111", "x-test-header-2" => "222" },
@@ -81,7 +81,12 @@ RSpec.describe "Legacy Send API", type: :request do
         end
 
         context "when no content is provided" do
-          let(:params) { default_params.merge(html_body: nil, plain_body: nil) }
+          let(:params) do
+            default_params.merge(
+              html_body: Base64.strict_encode64(""),
+              plain_body: Base64.strict_encode64("")
+            )
+          end
 
           it "returns an error" do
             parsed_body = JSON.parse(response.body)
@@ -196,7 +201,7 @@ RSpec.describe "Legacy Send API", type: :request do
             parsed_body = JSON.parse(response.body)
             message_id = parsed_body["data"]["messages"]["test@example.com"]["id"]
             message = server.message(message_id)
-            expect(message.headers["received"].first).to match(/\Afrom api/)
+            expect(message.headers["received"].first).to start_with "from api (10-42-11-130.email.vs-ru.svc.cluster.local [10.42.11.130]) by  VS with HTTP; "
           end
 
           it "creates appropriate message objects" do
@@ -221,8 +226,8 @@ RSpec.describe "Legacy Send API", type: :request do
                                         "to" => ["test@example.com"],
                                         "cc" => ["cc@example.com"],
                                         "reply-to" => ["reply@example.com"]),
-                plain_body: params[:plain_body],
-                html_body: params[:html_body],
+                plain_body: Base64.decode64(params[:plain_body]),
+                html_body: Base64.decode64(params[:html_body]),
                 attachments: [
                   have_attributes(content_type: /\Atext\/plain/, filename: "test1.txt", body: have_attributes(to_s: "hello world 1")),
                   have_attributes(content_type: /\Atext\/plain/, filename: "test2.txt", body: have_attributes(to_s: "hello world 2")),

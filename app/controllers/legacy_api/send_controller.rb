@@ -25,8 +25,8 @@ module LegacyAPI
     #                   from            => The name/email to send the email from
     #                   sender          => The name/email of the 'Sender'
     #                   reply_to        => The name/email of the 'Reply-to'
-    #                   plain_body      => The plain body
-    #                   html_body       => The HTML body
+    #                   plain_body      => The plain body (base64)
+    #                   html_body       => The HTML body (base64)
     #                   bounce          => Is this message a bounce?
     #                   tag             => A custom tag to add to the message
     #                   custom_headers  => A hash of custom headers
@@ -45,8 +45,8 @@ module LegacyAPI
       attributes[:sender] = api_params["sender"]
       attributes[:subject] = api_params["subject"]
       attributes[:reply_to] = api_params["reply_to"]
-      attributes[:plain_body] = api_params["plain_body"]
-      attributes[:html_body] = api_params["html_body"]
+      attributes[:plain_body] = Base64.decode64(api_params["plain_body"])
+      attributes[:html_body] = Base64.decode64(api_params["html_body"])
       attributes[:bounce] = api_params["bounce"] ? true : false
       attributes[:tag] = api_params["tag"]
       attributes[:custom_headers] = api_params["headers"] if api_params["headers"]
