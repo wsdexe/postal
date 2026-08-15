@@ -9,7 +9,8 @@ module MessageDequeuer
         check_rcpt_to
         add_tag
         hold_if_credential_is_set_to_hold
-        hold_if_recipient_on_suppression_list
+        # Suppression handling is delegated to the external sending software.
+        # hold_if_recipient_on_suppression_list
         parse_content
         inspect_message
         fail_if_spam
@@ -18,7 +19,8 @@ module MessageDequeuer
         increment_live_stats
         hold_if_server_development_mode
         send_message_to_sender
-        add_recipient_to_suppression_list_on_too_many_hard_fails
+        # Suppression handling is delegated to the external sending software.
+        # add_recipient_to_suppression_list_on_too_many_hard_fails
         remove_recipient_from_suppression_list_on_success
         log_sender_result
         finish_processing

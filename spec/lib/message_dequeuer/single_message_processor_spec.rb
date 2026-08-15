@@ -69,6 +69,15 @@ module MessageDequeuer
         processor.process
         expect { queued_message.reload }.to raise_error(ActiveRecord::RecordNotFound)
       end
+
+      context "when the message is outgoing" do
+        let(:message) { MessageFactory.outgoing(server) }
+
+        it "does not add the recipient to the suppression list" do
+          expect(server.message_db.suppression_list).to_not receive(:add)
+          processor.process
+        end
+      end
     end
 
     context "when the message raw data has been removed" do

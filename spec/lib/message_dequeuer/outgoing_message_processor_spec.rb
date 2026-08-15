@@ -127,37 +127,10 @@ module MessageDequeuer
         server.message_db.suppression_list.add(:recipient, message.rcpt_to, reason: "testing")
       end
 
-      context "when the message was queued manually" do
-        let(:queued_message) { create(:queued_message, :locked, message: message, manual: true) }
-
-        it "does not hold the message" do
-          processor.process
-          deliveries = message.deliveries.find { |d| d.status == "Held" }
-          expect(deliveries).to be_nil
-        end
-      end
-
-      context "when the message was not queued manually" do
-        it "logs" do
-          processor.process
-          expect(logger).to have_logged(/recipient is on the suppression list/)
-        end
-
-        it "sets the message status to Held" do
-          processor.process
-          expect(message.reload.status).to eq "Held"
-        end
-
-        it "creates a Held delivery" do
-          processor.process
-          delivery = message.deliveries.last
-          expect(delivery).to have_attributes(status: "Held", details: /Recipient \(#{message.rcpt_to}\) is on the suppression list/i)
-        end
-
-        it "removes the queued message" do
-          processor.process
-          expect { queued_message.reload }.to raise_error(ActiveRecord::RecordNotFound)
-        end
+      it "does not hold the message" do
+        processor.process
+        deliveries = message.deliveries.find { |d| d.status == "Held" }
+        expect(deliveries).to be_nil
       end
     end
 
@@ -420,19 +393,10 @@ module MessageDequeuer
             end
           end
 
-          it "logs" do
-            processor.process
-            expect(logger).to have_logged(/added #{message.rcpt_to} to suppression list because 2 hard fails in 24 hours/i)
-          end
-
-          it "adds the recipient to the suppression list" do
+          it "does not add the recipient to the suppression list" do
             processor.process
             entry = server.message_db.suppression_list.get(:recipient, message.rcpt_to)
-            expect(entry).to match hash_including(
-              "address" => message.rcpt_to,
-              "type" => "recipient",
-              "reason" => "too many hard fails"
-            )
+            expect(entry).to be_nil
           end
         end
       end

@@ -56,12 +56,13 @@ module MessageDequeuer
         if bounce_id = queued_message.send_bounce
           details += " Bounce sent to sender (see message <msg:#{bounce_id}>)"
         end
-      elsif queued_message.message.scope == "outgoing"
-        # Add the recipient to the suppression list
-        if queued_message.server.message_db.suppression_list.add(:recipient, queued_message.message.rcpt_to, reason: "too many soft fails")
-          log "added #{queued_message.message.rcpt_to} to suppression list because maximum attempts has been reached"
-          details += " Added #{queued_message.message.rcpt_to} to suppression list because delivery has failed #{queued_message.attempts} times."
-        end
+      # Suppression handling is delegated to the external sending software.
+      # elsif queued_message.message.scope == "outgoing"
+      #   # Add the recipient to the suppression list
+      #   if queued_message.server.message_db.suppression_list.add(:recipient, queued_message.message.rcpt_to, reason: "too many soft fails")
+      #     log "added #{queued_message.message.rcpt_to} to suppression list because maximum attempts has been reached"
+      #     details += " Added #{queued_message.message.rcpt_to} to suppression list because delivery has failed #{queued_message.attempts} times."
+      #   end
       end
 
       log "message has reached maximum number of attempts, hard failing"
