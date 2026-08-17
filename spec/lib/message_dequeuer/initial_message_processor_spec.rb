@@ -87,6 +87,122 @@ module MessageDequeuer
       end
     end
 
+    context "when an outgoing iCloud batch loses its SMTP connection" do
+      let(:domain) { create(:domain, server: server) }
+      let(:message) do
+        MessageFactory.outgoing(server, domain: domain) do |outgoing_message|
+          outgoing_message.rcpt_to = "first@icloud.com"
+        end
+      end
+      let(:other_message) do
+        MessageFactory.outgoing(server, domain: domain) do |outgoing_message|
+          outgoing_message.rcpt_to = "second@icloud.com"
+        end
+      end
+      let(:queued_message) { create(:queued_message, :locked, message: message) }
+      let!(:other_queued_message) { create(:queued_message, message: other_message) }
+      let(:connection_result) do
+        SendResult.new do |result|
+          result.type = "SoftFail"
+          result.retry = true
+          result.connect_error = true
+          result.details = "iCloud closed the connection"
+        end
+      end
+      let(:sent_result) do
+        SendResult.new do |result|
+          result.type = "Sent"
+          result.details = "Accepted by iCloud"
+        end
+      end
+      let(:first_sender) { instance_double(SMTPSender, start: nil, finish: nil) }
+      let(:retry_sender) { instance_double(SMTPSender, start: nil, finish: nil) }
+
+      it "requeues every message and later sends them through a new sender" do
+        allow(SMTPSender).to receive(:new).with("icloud.com", nil).and_return(first_sender, retry_sender)
+        expect(first_sender).to receive(:send_message).with(message).once.and_return(connection_result)
+
+        started_at = Time.current
+        Timecop.freeze(started_at) do
+          processor.process
+        end
+
+        expect(queued_message.reload).to have_attributes(attempts: 1, locked_at: nil)
+        expect(other_queued_message.reload).to have_attributes(attempts: 1, locked_at: nil)
+        expect(queued_message.retry_after).to be_present
+        expect(other_queued_message.retry_after).to be_present
+
+        Timecop.freeze(started_at + 6.minutes) do
+          queued_message.update!(locked_by: "retry-worker", locked_at: Time.current)
+          retry_processor = described_class.new(queued_message, logger: logger)
+
+          expect(retry_processor.state).not_to be processor.state
+          expect(retry_sender).to receive(:send_message).with(message).once.and_return(sent_result)
+          expect(retry_sender).to receive(:send_message).with(other_message).once.and_return(sent_result)
+          retry_processor.process
+        end
+
+        expect(first_sender).to have_received(:start).once
+        expect(retry_sender).to have_received(:start).once
+        expect { queued_message.reload }.to raise_error(ActiveRecord::RecordNotFound)
+        expect { other_queued_message.reload }.to raise_error(ActiveRecord::RecordNotFound)
+      end
+    end
+
+    context "when iCloud and Mail.ru messages are processed independently" do
+      let(:domain) { create(:domain, server: server) }
+      let(:message) do
+        MessageFactory.outgoing(server, domain: domain) do |outgoing_message|
+          outgoing_message.rcpt_to = "first@icloud.com"
+        end
+      end
+      let(:mail_message) do
+        MessageFactory.outgoing(server, domain: domain) do |outgoing_message|
+          outgoing_message.rcpt_to = "second@mail.ru"
+        end
+      end
+      let(:queued_message) { create(:queued_message, :locked, message: message) }
+      let!(:mail_queued_message) { create(:queued_message, :locked, message: mail_message) }
+      let(:icloud_result) do
+        SendResult.new do |result|
+          result.type = "SoftFail"
+          result.retry = true
+          result.connect_error = true
+          result.details = "iCloud returned 421"
+        end
+      end
+      let(:mail_result) do
+        SendResult.new do |result|
+          result.type = "Sent"
+          result.details = "Accepted by Mail.ru"
+        end
+      end
+      let(:icloud_sender) { instance_double(SMTPSender, start: nil, finish: nil, send_message: icloud_result) }
+      let(:mail_sender) { instance_double(SMTPSender, start: nil, finish: nil, send_message: mail_result) }
+
+      it "does not leak the iCloud connection result into the Mail.ru state" do
+        allow(SMTPSender).to receive(:new).with("icloud.com", nil).and_return(icloud_sender)
+        allow(SMTPSender).to receive(:new).with("mail.ru", nil).and_return(mail_sender)
+        mail_processor = described_class.new(mail_queued_message, logger: logger)
+
+        processor.process
+
+        expect(mail_sender).not_to have_received(:send_message)
+        expect(queued_message.reload).to have_attributes(attempts: 1, locked_at: nil)
+        expect(mail_queued_message.reload).to be_locked
+
+        mail_processor.process
+
+        expect(processor.state).not_to be mail_processor.state
+        expect(icloud_sender).to have_received(:start).once
+        expect(mail_sender).to have_received(:start).once
+        expect(icloud_sender).to have_received(:send_message).once
+        expect(mail_sender).to have_received(:send_message).once
+        expect(queued_message.reload.retry_after).to be_present
+        expect { mail_queued_message.reload }.to raise_error(ActiveRecord::RecordNotFound)
+      end
+    end
+
     context "when an error occurs while finding batchable messages" do
       before do
         allow(queued_message).to receive(:batchable_messages) { 1 / 0 }

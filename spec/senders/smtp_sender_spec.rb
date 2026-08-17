@@ -362,6 +362,239 @@ RSpec.describe SMTPSender do
         end
       end
 
+      context "for an iCloud recipient" do
+        let(:message) do
+          MessageFactory.outgoing(server, domain: domain) do |outgoing_message|
+            outgoing_message.rcpt_to = "john@icloud.com"
+          end
+        end
+        subject(:sender) { described_class.new("icloud.com", servers: [smtp_client_server]) }
+
+        context "when the SMTP server closes the session with a 421 response" do
+          let(:smtp_send_message_error) { proc { Net::SMTPServerBusy.new("421 4.7.1 temporarily deferred") } }
+
+          it "returns a connection SoftFail so the current batch is deferred" do
+            result = sender.send_message(message)
+            expect(result).to have_attributes(
+              type: "SoftFail",
+              retry: true,
+              output: "421 4.7.1 temporarily deferred",
+              connect_error: true
+            )
+          end
+
+          it "finishes the closed SMTP session without trying to reset it" do
+            sender.send_message(message)
+            expect(sender.endpoints.last).to have_received(:finish_smtp_session)
+            expect(sender.endpoints.last).not_to have_received(:reset_smtp_session)
+          end
+        end
+
+        context "when the 421 response is multiline" do
+          let(:smtp_response) do
+            Net::SMTP::Response.parse("421-4.7.1 temporarily deferred\n421 4.7.1 closing connection")
+          end
+          let(:smtp_send_message_error) { proc { Net::SMTPServerBusy.new(smtp_response) } }
+
+          it "uses the SMTP response status and defers the batch" do
+            result = sender.send_message(message)
+            expect(result).to have_attributes(type: "SoftFail", retry: true, connect_error: true)
+            expect(sender.endpoints.last).to have_received(:finish_smtp_session)
+            expect(sender.endpoints.last).not_to have_received(:reset_smtp_session)
+          end
+        end
+
+        context "when a 421 response is wrapped in SMTPUnknownError" do
+          let(:smtp_response) { Net::SMTP::Response.parse("421 4.7.1 temporarily deferred") }
+          let(:smtp_send_message_error) do
+            proc do
+              Net::SMTPUnknownError.new(smtp_response, message: "could not get 3xx (421: temporarily deferred)")
+            end
+          end
+
+          it "uses the wrapped response status and defers the batch" do
+            result = sender.send_message(message)
+            expect(result).to have_attributes(type: "SoftFail", retry: true, connect_error: true)
+            expect(sender.endpoints.last).to have_received(:finish_smtp_session)
+            expect(sender.endpoints.last).not_to have_received(:reset_smtp_session)
+          end
+        end
+
+        context "when the SMTP read times out" do
+          let(:smtp_send_message_error) { proc { Net::ReadTimeout.new } }
+
+          it "closes the indeterminate session and defers the batch" do
+            result = sender.send_message(message)
+            expect(result).to have_attributes(type: "SoftFail", retry: true, connect_error: true)
+            expect(sender.endpoints.last).to have_received(:finish_smtp_session)
+            expect(sender.endpoints.last).not_to have_received(:reset_smtp_session)
+          end
+        end
+
+        context "when the SMTP server returns another temporary status" do
+          let(:smtp_send_message_error) { proc { Net::SMTPServerBusy.new("451 4.3.0 temporary lookup failure") } }
+
+          it "retains the usable session and does not defer the rest of the batch" do
+            result = sender.send_message(message)
+            expect(result).to have_attributes(type: "SoftFail", retry: true, connect_error: nil)
+            expect(sender.endpoints.last).to have_received(:reset_smtp_session)
+            expect(sender.endpoints.last).not_to have_received(:finish_smtp_session)
+          end
+        end
+
+        context "when the SMTP session is unexpectedly unavailable" do
+          let(:smtp_send_message_error) { proc { SMTPClient::Endpoint::SMTPSessionNotStartedError.new } }
+
+          it "defers the rest of the batch" do
+            result = sender.send_message(message)
+            expect(result).to have_attributes(type: "SoftFail", retry: true, connect_error: true)
+          end
+        end
+
+        context "when SMTPUnknownError wraps a permanent 550 response" do
+          let(:smtp_response) { Net::SMTP::Response.parse("550 5.1.1 user does not exist") }
+          let(:smtp_send_message_error) do
+            proc do
+              Net::SMTPUnknownError.new(smtp_response, message: "could not get 3xx (550: user does not exist)")
+            end
+          end
+
+          it "hard fails without retrying" do
+            result = sender.send_message(message)
+            expect(result).to have_attributes(type: "HardFail", retry: nil, connect_error: nil)
+            expect(sender.endpoints.last).to have_received(:reset_smtp_session)
+          end
+        end
+
+        context "when net-smtp classifies a permanent 500 response as a syntax error" do
+          let(:smtp_response) { Net::SMTP::Response.parse("500 5.5.1 command rejected") }
+          let(:smtp_send_message_error) { proc { Net::SMTPSyntaxError.new(smtp_response) } }
+
+          it "hard fails without retrying" do
+            result = sender.send_message(message)
+            expect(result).to have_attributes(type: "HardFail", retry: nil, connect_error: nil)
+          end
+        end
+
+        context "when net-smtp classifies a permanent 530 response as an authentication error" do
+          let(:smtp_response) { Net::SMTP::Response.parse("530 5.7.0 authentication required") }
+          let(:smtp_send_message_error) { proc { Net::SMTPAuthenticationError.new(smtp_response) } }
+
+          it "hard fails without retrying" do
+            result = sender.send_message(message)
+            expect(result).to have_attributes(type: "HardFail", retry: nil, connect_error: nil)
+          end
+        end
+      end
+
+      context "for a Mail.ru recipient" do
+        let(:message) do
+          MessageFactory.outgoing(server, domain: domain) do |outgoing_message|
+            outgoing_message.rcpt_to = "john@mail.ru"
+          end
+        end
+        subject(:sender) { described_class.new("mail.ru", servers: [smtp_client_server]) }
+
+        context "when the SMTP server closes the session with a 421 response" do
+          let(:smtp_send_message_error) { proc { Net::SMTPServerBusy.new("421 4.7.1 temporarily deferred") } }
+
+          it "retains the original reset behavior without deferring the batch" do
+            result = sender.send_message(message)
+            expect(result).to have_attributes(type: "SoftFail", retry: true, connect_error: nil)
+            expect(sender.endpoints.last).to have_received(:reset_smtp_session)
+            expect(sender.endpoints.last).not_to have_received(:finish_smtp_session)
+          end
+        end
+
+        context "when the SMTP read times out" do
+          let(:smtp_send_message_error) { proc { Net::ReadTimeout.new } }
+
+          it "retains the original reset behavior without deferring the batch" do
+            result = sender.send_message(message)
+            expect(result).to have_attributes(type: "SoftFail", retry: true, connect_error: nil)
+            expect(sender.endpoints.last).to have_received(:reset_smtp_session)
+            expect(sender.endpoints.last).not_to have_received(:finish_smtp_session)
+          end
+        end
+
+        context "when the SMTP session is unexpectedly unavailable" do
+          let(:smtp_send_message_error) { proc { SMTPClient::Endpoint::SMTPSessionNotStartedError.new } }
+
+          it "retains the original per-message error handling" do
+            result = sender.send_message(message)
+            expect(result.connect_error).to be_nil
+            expect(sender.endpoints.last).to have_received(:reset_smtp_session)
+          end
+        end
+
+        context "when SMTPUnknownError wraps a permanent response" do
+          let(:smtp_response) { Net::SMTP::Response.parse("550 5.1.1 user does not exist") }
+          let(:smtp_send_message_error) do
+            proc do
+              Net::SMTPUnknownError.new(smtp_response, message: "could not get 3xx (550: user does not exist)")
+            end
+          end
+
+          it "retains Postal's original SoftFail behavior" do
+            result = sender.send_message(message)
+            expect(result).to have_attributes(type: "SoftFail", retry: true, connect_error: nil)
+          end
+        end
+      end
+
+      context "when the sender domain is iCloud but the envelope recipient is not" do
+        let(:message) do
+          MessageFactory.outgoing(server, domain: domain) do |outgoing_message|
+            outgoing_message.rcpt_to = "john@mail.ru"
+          end
+        end
+        let(:smtp_send_message_error) { proc { Net::SMTPServerBusy.new("421 4.7.1 temporarily deferred") } }
+        subject(:sender) { described_class.new("icloud.com", servers: [smtp_client_server]) }
+
+        it "does not apply the iCloud workaround" do
+          result = sender.send_message(message)
+          expect(result).to have_attributes(type: "SoftFail", retry: true, connect_error: nil)
+          expect(sender.endpoints.last).to have_received(:reset_smtp_session)
+          expect(sender.endpoints.last).not_to have_received(:finish_smtp_session)
+        end
+      end
+
+      context "when iCloud and Mail.ru deliveries overlap" do
+        let(:message) do
+          MessageFactory.outgoing(server, domain: domain) do |outgoing_message|
+            outgoing_message.rcpt_to = "john@icloud.com"
+          end
+        end
+        let(:smtp_send_message_error) do
+          proc do |endpoint|
+            if endpoint.server.hostname == smtp_client_server.hostname
+              Net::SMTPServerBusy.new("421 4.7.1 temporarily deferred")
+            end
+          end
+        end
+        subject(:sender) { described_class.new("icloud.com", servers: [smtp_client_server]) }
+
+        it "keeps provider sessions and results isolated" do
+          mail_server = SMTPClient::Server.new("mx.mail.ru.test")
+          allow(DNSResolver.local).to receive(:a).with("mx.mail.ru.test").and_return(["2.3.4.5"])
+          mail_sender = described_class.new("mail.ru", servers: [mail_server])
+          mail_message = MessageFactory.outgoing(server, domain: domain) do |outgoing_message|
+            outgoing_message.rcpt_to = "john@mail.ru"
+          end
+          mail_sender.start
+
+          icloud_result = sender.send_message(message)
+          mail_result = mail_sender.send_message(mail_message)
+
+          expect(sender.endpoints.last).not_to be mail_sender.endpoints.last
+          expect(icloud_result).to have_attributes(type: "SoftFail", retry: true, connect_error: true)
+          expect(mail_result).to have_attributes(type: "Sent", retry: nil, connect_error: nil)
+          expect(sender.endpoints.last).to have_received(:finish_smtp_session)
+          expect(mail_sender.endpoints.last).not_to have_received(:finish_smtp_session)
+          expect(mail_sender.endpoints.last).not_to have_received(:reset_smtp_session)
+        end
+      end
+
       context "when the SMTP server returns an error if a retry time in seconds" do
         let(:smtp_send_message_error) { proc { Net::SMTPServerBusy.new("Try again in 30 seconds") } }
 

@@ -86,6 +86,7 @@ class SMTPSender < BaseSender
   # @return [SendResult]
   def send_message_to_smtp_client(raw_message, mail_from, rcpt_to, retry_on_connection_error: true)
     start_time = Time.now
+    icloud_recipient = icloud_recipient?(rcpt_to)
     smtp_result = @current_endpoint.send_message(raw_message, mail_from, [rcpt_to])
     logger.info "Accepted by #{@current_endpoint} for #{rcpt_to}"
     create_result("Sent", start_time) do |r|
@@ -95,17 +96,35 @@ class SMTPSender < BaseSender
     end
   rescue Net::SMTPServerBusy, Net::SMTPAuthenticationError, Net::SMTPSyntaxError, Net::SMTPUnknownError, Net::ReadTimeout => e
     logger.error "#{e.class}: #{e.message}"
-    @current_endpoint.reset_smtp_session
 
-    create_result("SoftFail", start_time) do |r|
-      r.details = "Temporary SMTP delivery error when sending to #{@current_endpoint}"
-      r.output = e.message
-      if e.message =~ /(\d+) seconds/
-        r.retry = ::Regexp.last_match(1).to_i + 10
-      elsif e.message =~ /(\d+) minutes/
-        r.retry = (::Regexp.last_match(1).to_i * 60) + 10
-      else
-        r.retry = true
+    if icloud_recipient && permanent_smtp_response?(e)
+      @current_endpoint.reset_smtp_session
+
+      create_result("HardFail", start_time) do |r|
+        r.details = "Permanent SMTP delivery error when sending to #{@current_endpoint}"
+        r.output = e.message
+      end
+    else
+      icloud_connection_unavailable = if icloud_recipient
+                                         reset_icloud_smtp_session_after_temporary_error(e)
+                                       else
+                                         # Preserve Postal's original behavior for every
+                                         # recipient outside the exact icloud.com domain.
+                                         @current_endpoint.reset_smtp_session
+                                         false
+                                       end
+
+      create_result("SoftFail", start_time) do |r|
+        r.details = "Temporary SMTP delivery error when sending to #{@current_endpoint}"
+        r.output = e.message
+        r.connect_error = true if icloud_connection_unavailable
+        if e.message =~ /(\d+) seconds/
+          r.retry = ::Regexp.last_match(1).to_i + 10
+        elsif e.message =~ /(\d+) minutes/
+          r.retry = (::Regexp.last_match(1).to_i * 60) + 10
+        else
+          r.retry = true
+        end
       end
     end
   rescue Net::SMTPFatalError => e
@@ -129,7 +148,40 @@ class SMTPSender < BaseSender
       r.retry = true
       r.details = "An error occurred while sending the message to #{@current_endpoint}"
       r.output = e.message
+      if icloud_recipient && e.is_a?(SMTPClient::Endpoint::SMTPSessionNotStartedError)
+        r.connect_error = true
+      end
     end
+  end
+
+  # SMTP 421 means that the server is closing the transmission channel. A
+  # timed-out session also has an unknown protocol state and must not receive
+  # RSET. Other temporary errors may leave the session usable.
+  #
+  # @param error [StandardError] the SMTP error raised while sending
+  # @return [Boolean] whether the rest of the current iCloud batch should be deferred
+  def reset_icloud_smtp_session_after_temporary_error(error)
+    if smtp_response_status(error) == "421" || error.is_a?(Net::ReadTimeout)
+      @current_endpoint.finish_smtp_session
+      true
+    else
+      @current_endpoint.reset_smtp_session
+      false
+    end
+  end
+
+  def permanent_smtp_response?(error)
+    smtp_response_status(error)&.start_with?("5")
+  end
+
+  def smtp_response_status(error)
+    response_status = error.respond_to?(:response) ? error.response&.status : nil
+    response_status&.to_s || error.message.to_s[/\A(\d{3})(?:[ -]|\z)/, 1]
+  end
+
+  def icloud_recipient?(rcpt_to)
+    _, separator, domain = rcpt_to.to_s.rpartition("@")
+    separator == "@" && domain.casecmp?("icloud.com")
   end
 
   # Return the MAIL FROM which should be used for the given message
