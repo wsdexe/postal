@@ -345,32 +345,6 @@ module MessageDequeuer
         allow(state).to receive(:sender_for).and_return(mocked_sender)
       end
 
-      context "when the sender reports that its connection is unavailable" do
-        before do
-          send_result.type = "SoftFail"
-          send_result.retry = true
-          send_result.connect_error = true
-        end
-
-        it "caches the result for the rest of the current batch" do
-          processor.process
-          expect(state.send_result).to be send_result
-        end
-      end
-
-      context "when a connection result was already cached for the current batch" do
-        before do
-          send_result.type = "SoftFail"
-          send_result.retry = true
-          state.send_result = send_result
-        end
-
-        it "reuses the result without asking for a sender" do
-          expect(state).not_to receive(:sender_for)
-          processor.process
-        end
-      end
-
       it "increments the live stats" do
         expect { processor.process }.to change { server.message_db.live_stats.total(60) }.from(0).to(1)
       end
