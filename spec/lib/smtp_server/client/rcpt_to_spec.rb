@@ -121,7 +121,7 @@ module SMTPServer
         end
 
         it "rejects a token from another server" do
-          other_server = create(:server, organization: server.organization)
+          other_server = create(:server, organization: server.organization, name: "Other mail server")
           expect(client.handle("RCPT TO: #{other_server.token}@#{domain.return_path_domain}")).to eq "550 Invalid return path for server"
           expect(client.recipients).to be_empty
         end
@@ -137,7 +137,7 @@ module SMTPServer
 
         it "does not recognize an arbitrary name sharing the random prefix" do
           label = domain.return_path_domain.split('.').first
-          expect(client.handle("RCPT TO: #{server.token}@#{label}.unrelated.test")).to start_with("550")
+          expect(client.handle("RCPT TO: #{server.token}@#{label}.unrelated.test")).to eq "530 Authentication required"
           expect(client.recipients).to be_empty
         end
 

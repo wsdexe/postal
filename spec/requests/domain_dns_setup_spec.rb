@@ -32,4 +32,11 @@ RSpec.describe "Domain DNS setup", type: :request do
     Postal::Config.dns.mx_records.each { |mx| expect(response.body).to include(mx) }
     expect(response.body).not_to include("YOUR_SENDING_IP")
   end
+
+  it "shows a warning for a missing individual return path on the domain list" do
+    domain = create(:domain, owner: server, return_path_status: "Missing", return_path_error: "Missing CNAME")
+    get organization_server_domains_path(organization, server)
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('domainList__check--warning', domain.name, "Missing CNAME")
+  end
 end

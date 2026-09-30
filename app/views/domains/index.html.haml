@@ -56,7 +56,7 @@
               - if domain.return_path_status == 'OK'
                 %li.domainList__check.domainList__check--ok Return Path
               - elsif domain.return_path_status.nil?
-              - elsif domain.return_path_status == 'Missing'
+              - elsif domain.return_path_status == 'Missing' && !domain.individual_dns?
                 %li.domainList__check.domainList__check--neutral{:title => domain.return_path_error}= link_to "Return Path", [:setup, organization, @server, domain]
               - else
                 %li.domainList__check.domainList__check--warning{:title => domain.return_path_error}= link_to "Return Path", [:setup, organization, @server, domain]

@@ -58,6 +58,7 @@ module SMTPServer
           client.handle("Received: from example2.com by #{Postal::Config.postal.smtp_hostname}")
           client.handle("Received: from example1.com by #{Postal::Config.postal.smtp_hostname}")
           client.handle("Received: from example2.com by #{Postal::Config.postal.smtp_hostname}")
+          client.handle("Received: from example3.com by #{Postal::Config.postal.smtp_hostname}")
           client.handle("Subject: Test")
           client.handle("From: #{mail_from}")
           client.handle("To: #{rcpt_to}")
