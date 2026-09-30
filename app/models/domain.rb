@@ -47,6 +47,9 @@ class Domain < ApplicationRecord
   VERIFICATION_EMAIL_ALIASES = %w[webmaster postmaster admin administrator hostmaster].freeze
   VERIFICATION_METHODS = %w[DNS Email].freeze
 
+  DNS_NAME_ATTRIBUTES = %w[dns_spf_domain dns_dkim_selector dns_return_path dns_return_path_target dns_verification_prefix].freeze
+  attr_readonly(*DNS_NAME_ATTRIBUTES)
+
   belongs_to :server, optional: true
   belongs_to :owner, optional: true, polymorphic: true
   has_many :routes, dependent: :destroy
@@ -58,6 +61,7 @@ class Domain < ApplicationRecord
   random_string :dkim_identifier_string, type: :chars, length: 6, unique: true, upper_letters_only: true
 
   before_create :generate_dkim_key
+  before_create :generate_individual_dns_names
 
   scope :verified, -> { where.not(verified_at: nil) }
 
@@ -104,7 +108,21 @@ class Domain < ApplicationRecord
   end
 
   def spf_record
-    "v=spf1 a mx include:#{Postal::Config.dns.spf_include} ~all"
+    return "v=spf1 include:#{spf_include} ~all" if individual_dns?
+
+    "v=spf1 a mx include:#{spf_include} ~all"
+  end
+
+  def individual_dns?
+    dns_return_path.present?
+  end
+
+  def spf_include
+    individual_dns? ? dns_spf_domain : Postal::Config.dns.spf_include
+  end
+
+  def return_path_target
+    individual_dns? ? dns_return_path_target : Postal::Config.dns.return_path_domain
   end
 
   def dkim_record
@@ -115,6 +133,8 @@ class Domain < ApplicationRecord
   end
 
   def dkim_identifier
+    return dns_dkim_selector if individual_dns?
+
     return nil unless dkim_identifier_string
 
     Postal::Config.dns.dkim_identifier + "-#{dkim_identifier_string}"
@@ -128,7 +148,14 @@ class Domain < ApplicationRecord
   end
 
   def return_path_domain
+    return dns_return_path if individual_dns?
+
     "#{Postal::Config.dns.custom_return_path_prefix}.#{name}"
+  end
+
+  def available_to_server?(server)
+    (owner_type == "Server" && owner_id == server.id) ||
+      (owner_type == "Organization" && owner_id == server.organization_id)
   end
 
   # Returns a DNSResolver instance that can be used to perform DNS lookups needed for
@@ -142,7 +169,8 @@ class Domain < ApplicationRecord
   end
 
   def dns_verification_string
-    "#{Postal::Config.dns.domain_verify_prefix} #{verification_token}"
+    prefix = individual_dns? ? dns_verification_prefix : Postal::Config.dns.domain_verify_prefix
+    "#{prefix} #{verification_token}"
   end
 
   def verify_with_dns
@@ -159,6 +187,25 @@ class Domain < ApplicationRecord
   end
 
   private
+
+  def generate_individual_dns_names
+    # Only called on INSERT: saving/checking an existing domain never changes its DNS.
+    loop do
+      selector, return_label, target_label, verification = DNSNameWords.sample(
+        4, excluding: [Postal::Config.dns.custom_return_path_prefix]
+      )
+      self.dns_spf_domain = "spf.#{name}"
+      self.dns_dkim_selector = selector
+      self.dns_return_path = "#{return_label}.#{name}"
+      self.dns_return_path_target = "#{target_label}.#{name}"
+      self.dns_verification_prefix = verification
+      occupied = self.class.where(name: name).where(
+        "dns_dkim_selector = ? OR dns_return_path IN (?) OR dns_return_path_target IN (?)",
+        selector, [dns_return_path, dns_return_path_target], [dns_return_path, dns_return_path_target]
+      ).exists?
+      break unless occupied
+    end
+  end
 
   def update_verification_token_on_method_change
     return unless verification_method_changed?

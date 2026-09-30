@@ -24,6 +24,27 @@ jobs:
         with:
           fetch-depth: 0
       - uses: docker/setup-buildx-action@v3
+      - name: Build test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: ci
+          load: true
+          tags: postal-dns-test:local
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Check domain DNS and delivery compatibility
+        env:
+          POSTAL_IMAGE: postal-dns-test:local
+        run: |
+          docker compose run --rm postal bundle exec rake db:prepare
+          docker compose run --rm postal bundle exec rspec spec/models/domain_spec.rb spec/models/individual_domain_dns_spec.rb spec/lib/dns_name_words_spec.rb spec/lib/dkim_header_spec.rb spec/lib/smtp_server/client/rcpt_to_spec.rb spec/lib/smtp_server/client/finished_spec.rb spec/senders/smtp_sender_spec.rb spec/requests/domain_dns_setup_spec.rb
+          docker compose run --rm postal bundle exec rails runner script/check-individual-dns-migration.rb
+      - name: Clean up test services
+        if: always()
+        env:
+          POSTAL_IMAGE: postal-dns-test:local
+        run: docker compose down --volumes
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:

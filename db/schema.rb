@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2024_03_11_205229) do
+ActiveRecord::Schema[7.0].define(version: 2026_09_30_090000) do
   create_table "additional_route_endpoints", id: :integer, charset: "utf8mb4", collation: "utf8mb4_general_ci", force: :cascade do |t|
     t.integer "route_id"
     t.string "endpoint_type"
@@ -99,6 +99,12 @@ ActiveRecord::Schema[7.0].define(version: 2024_03_11_205229) do
     t.integer "owner_id"
     t.string "dkim_identifier_string"
     t.boolean "use_for_any"
+    t.string "dns_spf_domain"
+    t.string "dns_dkim_selector"
+    t.string "dns_return_path"
+    t.string "dns_return_path_target"
+    t.string "dns_verification_prefix"
+    t.index ["dns_return_path"], name: "index_domains_on_dns_return_path", unique: true
     t.index ["server_id"], name: "index_domains_on_server_id"
     t.index ["uuid"], name: "index_domains_on_uuid", length: 8
   end

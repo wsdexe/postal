@@ -43,6 +43,14 @@ FactoryBot.define do
     verification_method { "DNS" }
     verified_at { Time.now }
 
+    # Model a row created before the DNS migration, without changing creation defaults.
+    trait :legacy_dns do
+      after(:create) do |domain|
+        Domain.where(id: domain.id).update_all(Domain::DNS_NAME_ATTRIBUTES.index_with { nil })
+        domain.reload
+      end
+    end
+
     trait :unverified do
       verified_at { nil }
     end

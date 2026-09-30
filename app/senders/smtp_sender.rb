@@ -141,7 +141,7 @@ class SMTPSender < BaseSender
 
     # If the domain has a valid custom return path configured, return
     # that.
-    if message.domain.return_path_status == "OK"
+    if message.domain.return_path_status == "OK" || message.domain.individual_dns?
       return "#{message.server.token}@#{message.domain.return_path_domain}"
     end
 

@@ -3,6 +3,22 @@
 require "rails_helper"
 
 describe DKIMHeader do
+  [nil, "Missing", "Invalid"].each do |status|
+    it "signs with the individual domain when DNS status is #{status.inspect}" do
+      domain = create(:domain, dkim_status: status)
+      raw = "From: test@#{domain.name}\r\nTo: receiver@example.net\r\nSubject: Test\r\n\r\nHello\r\n"
+      header = described_class.new(domain, raw).dkim_header
+      expect(header).to include("d=#{domain.name};", "s=#{domain.dkim_identifier};")
+      expect(header).not_to include("d=#{Postal::Config.dns.return_path_domain};")
+    end
+  end
+
+  it "retains the shared signing fallback for an existing domain" do
+    domain = create(:domain, :legacy_dns, dkim_status: "Missing")
+    raw = "From: test@#{domain.name}\r\nSubject: Test\r\n\r\nHello\r\n"
+    expect(described_class.new(domain, raw).dkim_header).to include("d=#{Postal::Config.dns.return_path_domain};")
+  end
+
   examples = Rails.root.join("spec/examples/dkim_signing/*.msg")
   Dir[examples].each do |path|
     contents = File.read(path)

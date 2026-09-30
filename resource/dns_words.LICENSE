@@ -1,0 +1,13 @@
+dns_words.txt is adapted from the EFF Large Wordlist for Passphrases,
+created by Joseph Bonneau for the Electronic Frontier Foundation.
+
+Source: https://www.eff.org/files/2016/07/18/eff_large_wordlist.txt
+About: https://www.eff.org/document/passphrase-wordlists
+Copyright policy: https://www.eff.org/copyright
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+
+Changes: removed dice numbers, retained only lowercase ASCII words of
+5 through 10 letters, sorted and deduplicated. Retrieved 2026-09-30.
+EFF does not endorse this project. This attribution applies to the wordlist;
+the application's license is unchanged.

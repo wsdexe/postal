@@ -3,7 +3,7 @@
 class DKIMHeader
 
   def initialize(domain, message)
-    if domain && domain.dkim_status == "OK"
+    if domain && (domain.dkim_status == "OK" || domain.individual_dns?)
       @domain_name = domain.name
       @dkim_key = domain.dkim_key
       @dkim_identifier = domain.dkim_identifier

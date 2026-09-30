@@ -324,11 +324,15 @@ module SMTPServer
 
       uname, tag = uname.split("+", 2)
 
-      if domain == Postal::Config.dns.return_path_domain || domain =~ /\A#{Regexp.escape(Postal::Config.dns.custom_return_path_prefix)}\./
+      individual_return_path = Domain.find_by(dns_return_path: domain.downcase)
+      if individual_return_path || domain == Postal::Config.dns.return_path_domain || domain =~ /\A#{Regexp.escape(Postal::Config.dns.custom_return_path_prefix)}\./
         # This is a return path
         @state = :rcpt_to_received
         if server = ::Server.where(token: uname).first
-          if server.suspended?
+          if individual_return_path && !individual_return_path.available_to_server?(server)
+            increment_error_count("invalid-return-path")
+            "550 Invalid return path for server"
+          elsif server.suspended?
             increment_error_count("server-suspended")
             "535 Mail server has been suspended"
           else

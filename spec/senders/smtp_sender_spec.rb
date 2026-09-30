@@ -213,7 +213,7 @@ RSpec.describe SMTPSender do
 
   describe "#send_message" do
     let(:server) { create(:server) }
-    let(:domain) { create(:domain, server: server) }
+    let(:domain) { create(:domain, :legacy_dns, server: server) }
     let(:dns_result) { [] }
     let(:message) { MessageFactory.outgoing(server, domain: domain) }
 
@@ -277,6 +277,19 @@ RSpec.describe SMTPSender do
               "#{server.token}@#{Postal::Config.dns.return_path_domain}",
               ["john@example.com"]
             )
+          end
+        end
+
+        [nil, "Missing", "Invalid"].each do |status|
+          context "with individual DNS and return path status #{status.inspect}" do
+            let(:domain) { create(:domain, owner: server, return_path_status: status) }
+
+            it "uses its own return path even when DNS is not ready" do
+              sender.send_message(message)
+              expect(sender.endpoints.last).to have_received(:send_message).with(
+                kind_of(String), "#{server.token}@#{domain.return_path_domain}", ["john@example.com"]
+              )
+            end
           end
         end
 

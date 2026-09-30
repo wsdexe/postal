@@ -251,7 +251,7 @@ describe Domain do
       end
 
       it "returns the DKIM identifier" do
-        expect(domain.dkim_identifier).to eq "#{Postal::Config.dns.dkim_identifier}-#{domain.dkim_identifier_string}"
+        expect(domain.dkim_identifier).to eq domain.dns_dkim_selector
       end
     end
   end
@@ -269,7 +269,7 @@ describe Domain do
       end
 
       it "returns the DKIM identifier" do
-        expect(domain.dkim_record_name).to eq "#{Postal::Config.dns.dkim_identifier}-#{domain.dkim_identifier_string}._domainkey"
+        expect(domain.dkim_record_name).to eq "#{domain.dns_dkim_selector}._domainkey"
       end
     end
   end
@@ -284,7 +284,7 @@ describe Domain do
     let(:domain) { create(:domain, verification_method: "DNS") }
 
     it "returns the DNS verification string" do
-      expect(domain.dns_verification_string).to eq "#{Postal::Config.dns.domain_verify_prefix} #{domain.verification_token}"
+      expect(domain.dns_verification_string).to eq "#{domain.dns_verification_prefix} #{domain.verification_token}"
     end
   end
 

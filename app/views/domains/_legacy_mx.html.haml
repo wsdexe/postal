@@ -1,0 +1,19 @@
+%h3.pageContent__subTitle MX Records
+- if domain.mx_status == 'OK'
+  %p.pageContent__text.u-green.u-bold
+    %span.label.label--green Good
+    Your MX records look like they're good to go!
+- elsif domain.mx_status == 'Missing'
+  %p.pageContent__text.u-grey.u-bold
+    %span.label.label--grey OK
+    None of the MX records for this domain point to us. Incoming mail won't be sent to us.
+- elsif !domain.mx_status.nil?
+  %p.pageContent__text.u-orange.u-bold
+    %span.label.label--orange Warning
+    = domain.mx_error
+
+%p.pageContent__text
+  If you wish to receive incoming e-mail for this domain, you need to add the following MX records
+  to the domain. You don't have to do this and we'll only tell you if they're set up or not. Both
+  records should be priority <b>10</b>.
+%pre.codeBlock.u-margin= Postal::Config.dns.mx_records.join("\n")

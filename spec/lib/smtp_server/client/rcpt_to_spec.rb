@@ -105,6 +105,74 @@ module SMTPServer
         end
       end
 
+      context "when the RCPT TO address is an individual return path" do
+        let(:server) { create(:server) }
+        let(:domain) { create(:domain, owner: server) }
+        let(:address) { "#{server.token}@#{domain.return_path_domain}" }
+
+        it "accepts the stored name without requiring DNS verification" do
+          expect(domain.return_path_status).to be_nil
+          expect(client.handle("RCPT TO: #{address}")).to eq "250 OK"
+          expect(client.recipients).to eq [[:bounce, address, server]]
+        end
+
+        it "matches DNS names case insensitively" do
+          expect(client.handle("RCPT TO: #{server.token}@#{domain.return_path_domain.upcase}")).to eq "250 OK"
+        end
+
+        it "rejects a token from another server" do
+          other_server = create(:server, organization: server.organization)
+          expect(client.handle("RCPT TO: #{other_server.token}@#{domain.return_path_domain}")).to eq "550 Invalid return path for server"
+          expect(client.recipients).to be_empty
+        end
+
+        it "rejects an unknown token" do
+          expect(client.handle("RCPT TO: unknown@#{domain.return_path_domain}")).to eq "550 Invalid server token"
+        end
+
+        it "rejects a suspended server" do
+          server.update!(suspended_at: Time.now)
+          expect(client.handle("RCPT TO: #{address}")).to eq "535 Mail server has been suspended"
+        end
+
+        it "does not recognize an arbitrary name sharing the random prefix" do
+          label = domain.return_path_domain.split('.').first
+          expect(client.handle("RCPT TO: #{server.token}@#{label}.unrelated.test")).to start_with("550")
+          expect(client.recipients).to be_empty
+        end
+
+        it "supports organization-owned domains for that organization's servers" do
+          organization_domain = create(:domain, owner: server.organization)
+          expect(client.handle("RCPT TO: #{server.token}@#{organization_domain.return_path_domain}")).to eq "250 OK"
+        end
+
+        it "rejects organization-owned names for a different organization" do
+          organization_domain = create(:domain)
+          expect(client.handle("RCPT TO: #{server.token}@#{organization_domain.return_path_domain}")).to eq "550 Invalid return path for server"
+        end
+
+        it "passes a received bounce through the existing message matching pipeline" do
+          original = MessageFactory.outgoing(server, domain: domain)
+          expect(client.handle("RCPT TO: #{address}")).to eq "250 OK"
+          client.handle("DATA")
+          client.handle("From: mailer-daemon@remote.test")
+          client.handle("Subject: Delivery failed")
+          client.handle("")
+          client.handle("Original message headers:")
+          client.handle("X-VS-MsgID: #{original.token}")
+          client.handle("\r")
+          expect(client.handle(".\r")).to eq "250 OK"
+
+          queued = QueuedMessage.find_by!(server_id: server.id)
+          returned = queued.message
+          expect(returned.bounce).to be true
+          expect(returned.rcpt_to_return_path?).to be true
+          MessageDequeuer::IncomingMessageProcessor.new(queued, logger: TestLogger.new).process
+          expect(returned.reload.bounce_for_id).to eq original.id
+          expect(original.reload.status).to eq "Bounced"
+        end
+      end
+
       context "when authenticated and the RCPT TO address is provided" do
         it "returns an error if the server is suspended" do
           server = create(:server, :suspended)

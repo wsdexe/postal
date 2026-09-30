@@ -511,6 +511,10 @@ module Postal
       # Was thsi message sent to a return path?
       #
       def rcpt_to_return_path?
+        domain_name = rcpt_to&.split("@", 2)&.last
+        individual = Domain.find_by(dns_return_path: domain_name.downcase) if domain_name
+        return individual.available_to_server?(server) if individual
+
         !!(rcpt_to =~ /@#{Regexp.escape(Postal::Config.dns.custom_return_path_prefix)}\./)
       end
 
