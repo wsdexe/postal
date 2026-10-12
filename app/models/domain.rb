@@ -121,6 +121,13 @@ class Domain < ApplicationRecord
     individual_dns? && dns_return_path_target == dns_return_path
   end
 
+  def return_path_ipv4
+    pool = owner.is_a?(Server) ? owner.ip_pool : nil
+    return unless pool
+
+    pool.ip_addresses.order(:id).first&.ipv4
+  end
+
   # Suggested DNS content only; delivery's IP selection is unchanged.
   def spf_policy_record
     pool = owner.is_a?(Server) ? owner.ip_pool : nil

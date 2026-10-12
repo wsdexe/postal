@@ -104,7 +104,12 @@
     %p.pageContent__text
       At <b>#{@domain.return_path_target}</b>, add these records:
     %ul.pageContent__text.u-margin
-      %li <b>A</b>: the IP address where your Postal server accepts SMTP on port 25.
+      - if return_path_ip = @domain.return_path_ipv4
+        %li
+          <b>A</b>:
+          %b= return_path_ip
+      - else
+        %li <b>A</b>: the IP address where your Postal server accepts SMTP on port 25.
       %li <b>MX</b>: priority <b>10</b>, destination <b>#{@domain.return_path_target}</b>.
       %li <b>TXT</b>: the SPF record below.
     %pre.codeBlock.u-margin= @domain.spf_record

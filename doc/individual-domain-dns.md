@@ -15,6 +15,8 @@ For new domains, the setup page provides:
 - A word-based DKIM selector with the domain's existing individual key generator.
 - One word-based return-path hostname with A, MX and SPF TXT records directly on
   that hostname, to receive delivery notifications. No CNAME or second hostname.
+  The suggested A value is the first IPv4 address in the server's selected pool
+  (by creation order); MX points to the return-path hostname itself, priority 10.
 - An individual verification prefix, with the existing random verification token.
 
 Words are drawn once from the bundled 7,223-word list (5–10 lowercase ASCII letters).

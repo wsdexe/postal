@@ -22,15 +22,16 @@ RSpec.describe "Domain DNS setup", type: :request do
     get setup_organization_server_domain_path(organization, server, domain)
     expect(response).to have_http_status(:ok)
     expect(response.body).to include(domain.spf_include, domain.dkim_record_name, domain.return_path_domain, domain.return_path_target)
-    expect(response.body).to include("v=spf1 ip4:192.0.2.10 ~all", "port 25", "priority", "DNS warnings do not stop sending")
+    expect(response.body).to include("v=spf1 ip4:192.0.2.10 ~all", "priority", "DNS warnings do not stop sending")
+    expect(Nokogiri::HTML(response.body).css("li").map { |item| item.text.squish }).to include("A: 192.0.2.10")
     expect(response.body).not_to include("YOUR_SENDING_IP", "CNAME")
     expect(response.body).not_to include(Postal::Config.dns.spf_include, Postal::Config.dns.return_path_domain)
     Postal::Config.dns.mx_records.each { |mx| expect(response.body).not_to include(mx) }
   end
 
-  it "shows all addresses of the selected pool in the SPF instruction" do
+  it "shows the first pool IPv4 for A and all pool addresses for SPF" do
     pool = create(:ip_pool, default: false)
-    create(:ip_address, ip_pool: pool, ipv4: "192.0.2.10", ipv6: nil)
+    create(:ip_address, ip_pool: pool, ipv4: "192.0.2.10", ipv6: nil, priority: 5)
     create(:ip_address, ip_pool: pool, ipv4: "192.0.2.11", ipv6: "2001:db8::11")
     organization.ip_pools << pool
     server.update!(ip_pool: pool)
@@ -38,6 +39,9 @@ RSpec.describe "Domain DNS setup", type: :request do
     get setup_organization_server_domain_path(organization, server, domain)
     expect(response).to have_http_status(:ok)
     expect(response.body).to include("v=spf1 ip4:192.0.2.10 ip4:192.0.2.11 ip6:2001:db8::11 ~all")
+    records = Nokogiri::HTML(response.body).css("li").map { |item| item.text.squish }
+    expect(records).to include("A: 192.0.2.10", "MX: priority 10, destination #{domain.return_path_domain}.")
+    expect(records).not_to include("A: 192.0.2.11")
   end
 
   it "explains missing pool addresses without showing a placeholder SPF policy" do
@@ -46,6 +50,7 @@ RSpec.describe "Domain DNS setup", type: :request do
     get setup_organization_server_domain_path(organization, server, domain)
     expect(response).to have_http_status(:ok)
     expect(response.body).to include("No sending IP addresses are available")
+    expect(response.body).to include("the IP address where your Postal server accepts SMTP on port 25")
     expect(response.body).not_to include("YOUR_SENDING_IP", "v=spf1 ~all")
   end
 
