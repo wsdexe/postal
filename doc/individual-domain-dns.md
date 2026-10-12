@@ -8,20 +8,30 @@ ordinary saves do not convert existing domains or regenerate names.
 For new domains, the setup page provides:
 
 - A root SPF TXT record including `spf.<domain>`.
-- A TXT record at `spf.<domain>` where the administrator lists sending IPs.
+- A TXT record at `spf.<domain>`, prefilled with all IPv4 and IPv6 addresses from
+  the owning server's selected IP pool, in address creation order. If no selected
+  pool has addresses (including organization-owned domains without one server),
+  the page explains how to supply the addresses instead of inventing a policy.
 - A word-based DKIM selector with the domain's existing individual key generator.
-- A word-based return-path CNAME and a different word-based target in the same domain.
-- A, MX and SPF TXT instructions for the CNAME target, to receive delivery notifications.
+- One word-based return-path hostname with A, MX and SPF TXT records directly on
+  that hostname, to receive delivery notifications. No CNAME or second hostname.
 - An individual verification prefix, with the existing random verification token.
 
 Words are drawn once from the bundled 7,223-word list (5–10 lowercase ASCII letters).
 They are stored, not recalculated from the dictionary or configuration on each request.
 See `resource/dns_words.LICENSE` for source and attribution.
 
-The administrator supplies IP addresses in DNS. IP pools, PTR records, Message-ID
+Previously created individual domains retain their stored CNAME and separate target;
+their MAIL FROM, DKIM and DNS requirements do not change. New rows store the same
+hostname in `dns_return_path` and `dns_return_path_target` to identify direct mode.
+Existing distinct values continue to identify CNAME mode. No additional database
+migration or conversion of existing rows is needed for this change.
+
+The administrator still publishes the records in DNS, and updates the SPF policy
+there if the pool's addresses change. IP pools, PTR records, Message-ID
 generation, message submission, tracking and root-domain MX routing are unchanged.
-The CNAME target must reach Postal's SMTP listener on port 25. An explicit MX
-pointing to the target itself is recommended; an address-only target also supports
+The return-path hostname (or existing CNAME target) must reach Postal's SMTP listener
+on port 25. An explicit MX pointing to that hostname itself is recommended; an address-only hostname also supports
 SMTP's implicit MX rule. No mailbox or incoming route is needed for recognized bounces.
 
 New domains always use their individual MAIL FROM domain and DKIM identity, even

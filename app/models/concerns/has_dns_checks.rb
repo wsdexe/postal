@@ -139,6 +139,14 @@ module HasDNSChecks
 
   def check_return_path_record
     records = resolver.cname(return_path_domain)
+    if direct_return_path?
+      return check_individual_return_path_target if records.empty?
+
+      self.return_path_status = "Invalid"
+      self.return_path_error = "Add A or AAAA, MX and SPF TXT records directly at #{return_path_domain}; remove its CNAME record"
+      return false
+    end
+
     if records.empty?
       self.return_path_status = "Missing"
       self.return_path_error = "There is no return path record at #{return_path_domain}"

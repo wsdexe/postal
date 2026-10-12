@@ -51,6 +51,14 @@ FactoryBot.define do
       end
     end
 
+    # Model individual DNS names persisted before direct return paths were introduced.
+    trait :cname_dns do
+      after(:create) do |domain|
+        Domain.where(id: domain.id).update_all(dns_return_path_target: "previous-target.#{domain.name}")
+        domain.reload
+      end
+    end
+
     trait :unverified do
       verified_at { nil }
     end

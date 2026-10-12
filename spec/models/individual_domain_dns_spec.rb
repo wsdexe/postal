@@ -10,10 +10,11 @@ describe Domain, "individual DNS" do
     names = domain.attributes.slice(*Domain::DNS_NAME_ATTRIBUTES)
     expect(names.values).to all(be_present)
     expect(domain.dns_spf_domain).to eq "spf.example.com"
-    labels = [domain.dns_dkim_selector, domain.dns_return_path.split('.').first,
-              domain.dns_return_path_target.split('.').first, domain.dns_verification_prefix]
+    labels = [domain.dns_dkim_selector, domain.dns_return_path.split('.').first, domain.dns_verification_prefix]
     expect(labels).to all(match(/\A[a-z]{5,10}\z/))
-    expect(labels.uniq.size).to eq 4
+    expect(labels.uniq.size).to eq 3
+    expect(domain.return_path_target).to eq domain.return_path_domain
+    expect(domain.direct_return_path?).to be true
     domain.update!(outgoing: false)
     expect(domain.reload.attributes.slice(*Domain::DNS_NAME_ATTRIBUTES)).to eq names
   end
@@ -32,6 +33,7 @@ describe Domain, "individual DNS" do
     legacy.update!(dns_checked_at: Time.now)
     legacy.reload
     expect(legacy.individual_dns?).to be false
+    expect(legacy.direct_return_path?).to be false
     expect(legacy.attributes.slice(*Domain::DNS_NAME_ATTRIBUTES).values).to all(be_nil)
     expect(legacy.dkim_private_key).to eq original_key
     expect(legacy.spf_record).to eq "v=spf1 a mx include:#{Postal::Config.dns.spf_include} ~all"
@@ -41,13 +43,23 @@ describe Domain, "individual DNS" do
     expect(legacy.dns_verification_string).to eq "#{Postal::Config.dns.domain_verify_prefix} #{legacy.verification_token}"
   end
 
-  context "when checking DNS" do
+  it "preserves both names and the DKIM key for a previously created CNAME domain" do
+    existing = create(:domain, :cname_dns)
+    original = existing.attributes.slice(*Domain::DNS_NAME_ATTRIBUTES, "dkim_private_key")
+    existing.update!(dns_checked_at: Time.now)
+    expect(existing.reload.attributes.slice(*Domain::DNS_NAME_ATTRIBUTES, "dkim_private_key")).to eq original
+    expect(existing.individual_dns?).to be true
+    expect(existing.direct_return_path?).to be false
+    expect(existing.return_path_target).not_to eq existing.return_path_domain
+  end
+
+  shared_examples "individual DNS checks" do
     before do
       allow(domain).to receive(:resolver).and_return(resolver)
       allow(resolver).to receive(:txt).with(domain.name).and_return([domain.spf_record])
       allow(resolver).to receive(:txt).with(domain.spf_include).and_return(["v=spf1 ip4:192.0.2.10 ~all"])
       allow(resolver).to receive(:txt).with("#{domain.dkim_record_name}.#{domain.name}").and_return([domain.dkim_record])
-      allow(resolver).to receive(:cname).with(domain.return_path_domain).and_return([domain.return_path_target])
+      allow(resolver).to receive(:cname).with(domain.return_path_domain).and_return(cname_records)
       allow(resolver).to receive(:a).with(domain.return_path_target).and_return(["192.0.2.10"])
       allow(resolver).to receive(:aaaa).with(domain.return_path_target).and_return([])
       allow(resolver).to receive(:mx).with(domain.return_path_target).and_return([[10, domain.return_path_target]])
@@ -84,10 +96,16 @@ describe Domain, "individual DNS" do
       expect(domain.return_path_status).to eq "Invalid"
     end
 
-    it "warns if the CNAME target has no address" do
+    it "warns if the return path's DNS host has no address" do
       allow(resolver).to receive(:a).with(domain.return_path_target).and_return([])
       expect(domain.check_dns).to be false
       expect(domain.return_path_status).to eq "Invalid"
+    end
+
+    it "accepts an IPv6-only return path's DNS host" do
+      allow(resolver).to receive(:a).with(domain.return_path_target).and_return([])
+      allow(resolver).to receive(:aaaa).with(domain.return_path_target).and_return(["2001:db8::10"])
+      expect(domain.check_dns).to be true
     end
 
     it "accepts SMTP's implicit MX when the target has an address" do
@@ -103,6 +121,77 @@ describe Domain, "individual DNS" do
     it "warns if SPF is missing on the return path target" do
       allow(resolver).to receive(:txt).with(domain.return_path_target).and_return([])
       expect(domain.check_dns).to be false
+    end
+
+    it "warns if multiple SPF records exist on the return path target" do
+      allow(resolver).to receive(:txt).with(domain.return_path_target).and_return([domain.spf_record, "v=spf1 ~all"])
+      expect(domain.check_dns).to be false
+    end
+  end
+
+  context "when checking a new direct return path" do
+    let(:cname_records) { [] }
+
+    include_examples "individual DNS checks"
+
+    it "rejects a CNAME even if it points to itself" do
+      allow(resolver).to receive(:cname).with(domain.return_path_domain).and_return([domain.return_path_domain])
+      expect(domain.check_dns).to be false
+      expect(domain.return_path_error).to include("remove its CNAME record")
+    end
+  end
+
+  context "when checking a previously created CNAME return path" do
+    let(:domain) { create(:domain, :cname_dns, name: "example.com") }
+    let(:cname_records) { [domain.return_path_target] }
+
+    include_examples "individual DNS checks"
+
+    it "still requires its saved CNAME" do
+      allow(resolver).to receive(:cname).with(domain.return_path_domain).and_return([])
+      expect(domain.check_dns).to be false
+      expect(domain.return_path_status).to eq "Missing"
+    end
+  end
+
+  describe "SPF policy suggestions" do
+    let(:organization) { create(:organization) }
+    let(:pool) do
+      create(:ip_pool, default: false).tap { |pool| organization.ip_pools << pool }
+    end
+    let(:server) { create(:server, organization: organization, ip_pool: pool) }
+    let(:domain) { create(:domain, owner: server) }
+
+    it "includes all selected pool addresses in stable order without changing DNS names" do
+      create(:ip_address, ip_pool: pool, ipv4: "192.0.2.10", ipv6: nil)
+      create(:ip_address, ip_pool: pool, ipv4: "192.0.2.11", ipv6: "2001:db8::11")
+      create(:ip_address, ipv4: "192.0.2.99", ipv6: nil)
+      names = domain.attributes.slice(*Domain::DNS_NAME_ATTRIBUTES)
+      expect(domain.spf_policy_record).to eq "v=spf1 ip4:192.0.2.10 ip4:192.0.2.11 ip6:2001:db8::11 ~all"
+      expect(domain.reload.attributes.slice(*Domain::DNS_NAME_ATTRIBUTES)).to eq names
+    end
+
+    it "uses the currently selected pool when it changes" do
+      replacement = create(:ip_pool, default: false)
+      create(:ip_address, ip_pool: replacement, ipv4: "192.0.2.20", ipv6: nil)
+      organization.ip_pools << replacement
+      server.update!(ip_pool: replacement)
+      expect(domain.spf_policy_record).to eq "v=spf1 ip4:192.0.2.20 ~all"
+    end
+
+    it "does not generate a policy for an empty pool" do
+      expect(domain.spf_policy_record).to be_nil
+    end
+
+    it "does not substitute the global pool if no pool is selected" do
+      create(:ip_pool, :with_ip_address)
+      server.update!(ip_pool: nil)
+      expect(domain.spf_policy_record).to be_nil
+    end
+
+    it "does not guess a pool for organization-owned domains" do
+      organization_domain = create(:domain, owner: server.organization)
+      expect(organization_domain.spf_policy_record).to be_nil
     end
   end
 end

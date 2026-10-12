@@ -14,13 +14,48 @@ RSpec.describe "Domain DNS setup", type: :request do
   end
 
   it "shows the complete individual DNS instructions and no shared DNS hostnames" do
+    pool = create(:ip_pool, default: false)
+    create(:ip_address, ip_pool: pool, ipv4: "192.0.2.10", ipv6: nil)
+    organization.ip_pools << pool
+    server.update!(ip_pool: pool)
     domain = create(:domain, owner: server)
     get setup_organization_server_domain_path(organization, server, domain)
     expect(response).to have_http_status(:ok)
     expect(response.body).to include(domain.spf_include, domain.dkim_record_name, domain.return_path_domain, domain.return_path_target)
-    expect(response.body).to include("YOUR_SENDING_IP", "port 25", "priority", "DNS warnings do not stop sending")
+    expect(response.body).to include("v=spf1 ip4:192.0.2.10 ~all", "port 25", "priority", "DNS warnings do not stop sending")
+    expect(response.body).not_to include("YOUR_SENDING_IP", "CNAME")
     expect(response.body).not_to include(Postal::Config.dns.spf_include, Postal::Config.dns.return_path_domain)
     Postal::Config.dns.mx_records.each { |mx| expect(response.body).not_to include(mx) }
+  end
+
+  it "shows all addresses of the selected pool in the SPF instruction" do
+    pool = create(:ip_pool, default: false)
+    create(:ip_address, ip_pool: pool, ipv4: "192.0.2.10", ipv6: nil)
+    create(:ip_address, ip_pool: pool, ipv4: "192.0.2.11", ipv6: "2001:db8::11")
+    organization.ip_pools << pool
+    server.update!(ip_pool: pool)
+    domain = create(:domain, owner: server)
+    get setup_organization_server_domain_path(organization, server, domain)
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("v=spf1 ip4:192.0.2.10 ip4:192.0.2.11 ip6:2001:db8::11 ~all")
+  end
+
+  it "explains missing pool addresses without showing a placeholder SPF policy" do
+    server.update!(ip_pool: nil)
+    domain = create(:domain, owner: server)
+    get setup_organization_server_domain_path(organization, server, domain)
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("No sending IP addresses are available")
+    expect(response.body).not_to include("YOUR_SENDING_IP", "v=spf1 ~all")
+  end
+
+  it "keeps the CNAME instructions for a previously created individual domain" do
+    domain = create(:domain, :cname_dns, owner: server)
+    get setup_organization_server_domain_path(organization, server, domain)
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("CNAME", domain.return_path_domain, domain.return_path_target)
+    expect(response.body).to include("Place the A, MX and TXT records on the CNAME target")
+    expect(response.body).not_to include(Postal::Config.dns.return_path_domain)
   end
 
   it "keeps the original setup instructions for an existing domain" do
@@ -34,9 +69,9 @@ RSpec.describe "Domain DNS setup", type: :request do
   end
 
   it "shows a warning for a missing individual return path on the domain list" do
-    domain = create(:domain, owner: server, return_path_status: "Missing", return_path_error: "Missing CNAME")
+    domain = create(:domain, owner: server, return_path_status: "Missing", return_path_error: "Missing return path records")
     get organization_server_domains_path(organization, server)
     expect(response).to have_http_status(:ok)
-    expect(response.body).to include('domainList__check--warning', domain.name, "Missing CNAME")
+    expect(response.body).to include('domainList__check--warning', domain.name, "Missing return path records")
   end
 end

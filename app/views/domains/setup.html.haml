@@ -49,8 +49,13 @@
   - if @domain.individual_dns?
     %p.pageContent__text
       Add a second TXT record at <b>#{@domain.spf_include}</b> listing your sending IP addresses.
-      Replace <b>YOUR_SENDING_IP</b> below with your actual IPv4 address; add ip6: entries if you send over IPv6.
-    %pre.codeBlock.u-margin v=spf1 ip4:YOUR_SENDING_IP ~all
+    - if policy = @domain.spf_policy_record
+      %pre.codeBlock.u-margin= policy
+      %p.pageContent__text
+        This record lists all addresses in this server's selected IP pool. Update the DNS record if those addresses change.
+    - else
+      %p.pageContent__text.u-orange
+        No sending IP addresses are available from a selected server IP pool. Select a pool with addresses on the server to generate this record, or enter your sending addresses manually using ip4: and ip6: mechanisms.
 
   %h3.pageContent__subTitle DKIM Record
   - if @domain.dkim_status == 'OK'
@@ -85,12 +90,15 @@
     %p.pageContent__text
       This domain always uses <b>#{@domain.return_path_domain}</b> for returns, even before DNS checks pass.
       DNS warnings do not stop sending. Configure all records below so delivery notifications can reach Postal.
-      Add a <b>CNAME</b> record at <b>#{@domain.return_path_domain}</b> pointing to:
+    - unless @domain.direct_return_path?
+      %p.pageContent__text
+        Add a <b>CNAME</b> record at <b>#{@domain.return_path_domain}</b> pointing to:
+      %pre.codeBlock.u-margin= @domain.return_path_target
   - else
     %p.pageContent__text
       This is optional but we recommend adding this to improve deliverability. You should add
       a <b>CNAME</b> record at <b>#{@domain.return_path_domain}</b> to point to the hostname below.
-  %pre.codeBlock.u-margin= @domain.return_path_target
+    %pre.codeBlock.u-margin= @domain.return_path_target
 
   - if @domain.individual_dns?
     %p.pageContent__text
@@ -102,7 +110,8 @@
     %pre.codeBlock.u-margin= @domain.spf_record
     %p.pageContent__text
       These records apply only to the return-path subdomains. Keep your main domain's MX records with your existing mail provider.
-      Place the A, MX and TXT records on the CNAME target, not on the CNAME name itself.
+      - unless @domain.direct_return_path?
+        Place the A, MX and TXT records on the CNAME target, not on the CNAME name itself.
 
 
   - unless @domain.individual_dns?

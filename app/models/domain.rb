@@ -117,6 +117,24 @@ class Domain < ApplicationRecord
     dns_return_path.present?
   end
 
+  def direct_return_path?
+    individual_dns? && dns_return_path_target == dns_return_path
+  end
+
+  # Suggested DNS content only; delivery's IP selection is unchanged.
+  def spf_policy_record
+    pool = owner.is_a?(Server) ? owner.ip_pool : nil
+    return unless pool
+
+    terms = pool.ip_addresses.order(:id).flat_map do |address|
+      [address.ipv4.present? ? "ip4:#{address.ipv4}" : nil,
+       address.ipv6.present? ? "ip6:#{address.ipv6}" : nil]
+    end.compact.uniq
+    return if terms.empty?
+
+    "v=spf1 #{terms.join(' ')} ~all"
+  end
+
   def spf_include
     individual_dns? ? dns_spf_domain : Postal::Config.dns.spf_include
   end
@@ -191,13 +209,14 @@ class Domain < ApplicationRecord
   def generate_individual_dns_names
     # Only called on INSERT: saving/checking an existing domain never changes its DNS.
     loop do
-      selector, return_label, target_label, verification = DNSNameWords.sample(
-        4, excluding: [Postal::Config.dns.custom_return_path_prefix]
+      selector, return_label, verification = DNSNameWords.sample(
+        3, excluding: [Postal::Config.dns.custom_return_path_prefix]
       )
       self.dns_spf_domain = "spf.#{name}"
       self.dns_dkim_selector = selector
       self.dns_return_path = "#{return_label}.#{name}"
-      self.dns_return_path_target = "#{target_label}.#{name}"
+      # Equal stored names mean direct A/MX/TXT. Existing distinct names retain CNAME mode.
+      self.dns_return_path_target = dns_return_path
       self.dns_verification_prefix = verification
       occupied = self.class.where(name: name).where(
         "dns_dkim_selector = ? OR dns_return_path IN (?) OR dns_return_path_target IN (?)",

@@ -280,15 +280,17 @@ RSpec.describe SMTPSender do
           end
         end
 
-        [nil, "Missing", "Invalid"].each do |status|
-          context "with individual DNS and return path status #{status.inspect}" do
-            let(:domain) { create(:domain, owner: server, return_path_status: status) }
+        { "direct" => [], "existing CNAME" => [:cname_dns] }.each do |mode, traits|
+          [nil, "Missing", "Invalid"].each do |status|
+            context "with #{mode} individual DNS and return path status #{status.inspect}" do
+              let(:domain) { create(:domain, *traits, owner: server, return_path_status: status) }
 
-            it "uses its own return path even when DNS is not ready" do
-              sender.send_message(message)
-              expect(sender.endpoints.last).to have_received(:send_message).with(
-                kind_of(String), "#{server.token}@#{domain.return_path_domain}", ["john@example.com"]
-              )
+              it "uses its own return path even when DNS is not ready" do
+                sender.send_message(message)
+                expect(sender.endpoints.last).to have_received(:send_message).with(
+                  kind_of(String), "#{server.token}@#{domain.return_path_domain}", ["john@example.com"]
+                )
+              end
             end
           end
         end

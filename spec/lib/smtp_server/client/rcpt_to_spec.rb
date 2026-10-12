@@ -105,9 +105,9 @@ module SMTPServer
         end
       end
 
-      context "when the RCPT TO address is an individual return path" do
+      shared_examples "an individual return path recipient" do
         let(:server) { create(:server) }
-        let(:domain) { create(:domain, owner: server) }
+        let(:domain) { create(:domain, *dns_traits, owner: server) }
         let(:address) { "#{server.token}@#{domain.return_path_domain}" }
 
         it "accepts the stored name without requiring DNS verification" do
@@ -171,6 +171,16 @@ module SMTPServer
           expect(returned.reload.bounce_for_id).to eq original.id
           expect(original.reload.status).to eq "Bounced"
         end
+      end
+
+      context "when the RCPT TO address is a new direct return path" do
+        let(:dns_traits) { [] }
+        include_examples "an individual return path recipient"
+      end
+
+      context "when the RCPT TO address is a previously created CNAME return path" do
+        let(:dns_traits) { [:cname_dns] }
+        include_examples "an individual return path recipient"
       end
 
       context "when authenticated and the RCPT TO address is provided" do
