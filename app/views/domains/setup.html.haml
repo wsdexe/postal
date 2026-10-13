@@ -103,15 +103,17 @@
   - if @domain.individual_dns?
     %p.pageContent__text
       At <b>#{@domain.return_path_target}</b>, add these records:
-    %ul.pageContent__text.u-margin
-      - if return_path_ip = @domain.return_path_ipv4
-        %li
-          <b>A</b>:
-          %b= return_path_ip
-      - else
-        %li <b>A</b>: the IP address where your Postal server accepts SMTP on port 25.
-      %li <b>MX</b>: priority <b>10</b>, destination <b>#{@domain.return_path_target}</b>.
-      %li <b>TXT</b>: the SPF record below.
+    %p.pageContent__text
+      %b A record
+    - if return_path_ip = @domain.return_path_ipv4
+      %pre.codeBlock.u-margin= return_path_ip
+    - else
+      %p.pageContent__text Use the IP address where your Postal server accepts SMTP on port 25.
+    %p.pageContent__text
+      <b>MX record</b>, priority <b>10</b>:
+    %pre.codeBlock.u-margin= @domain.return_path_target
+    %p.pageContent__text
+      %b TXT record (SPF)
     %pre.codeBlock.u-margin= @domain.spf_record
     %p.pageContent__text
       These records apply only to the return-path subdomains. Keep your main domain's MX records with your existing mail provider.

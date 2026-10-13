@@ -23,7 +23,7 @@ RSpec.describe "Domain DNS setup", type: :request do
     expect(response).to have_http_status(:ok)
     expect(response.body).to include(domain.spf_include, domain.dkim_record_name, domain.return_path_domain, domain.return_path_target)
     expect(response.body).to include("v=spf1 ip4:192.0.2.10 ~all", "priority", "DNS warnings do not stop sending")
-    expect(Nokogiri::HTML(response.body).css("li").map { |item| item.text.squish }).to include("A: 192.0.2.10")
+    expect(Nokogiri::HTML(response.body).css("pre.codeBlock").map { |item| item.text.strip }).to include("192.0.2.10", domain.return_path_domain)
     expect(response.body).not_to include("YOUR_SENDING_IP", "CNAME")
     expect(response.body).not_to include(Postal::Config.dns.spf_include, Postal::Config.dns.return_path_domain)
     Postal::Config.dns.mx_records.each { |mx| expect(response.body).not_to include(mx) }
@@ -39,9 +39,9 @@ RSpec.describe "Domain DNS setup", type: :request do
     get setup_organization_server_domain_path(organization, server, domain)
     expect(response).to have_http_status(:ok)
     expect(response.body).to include("v=spf1 ip4:192.0.2.10 ip4:192.0.2.11 ip6:2001:db8::11 ~all")
-    records = Nokogiri::HTML(response.body).css("li").map { |item| item.text.squish }
-    expect(records).to include("A: 192.0.2.10", "MX: priority 10, destination #{domain.return_path_domain}.")
-    expect(records).not_to include("A: 192.0.2.11")
+    records = Nokogiri::HTML(response.body).css("pre.codeBlock").map { |item| item.text.strip }
+    expect(records).to include("192.0.2.10", domain.return_path_domain, domain.spf_record)
+    expect(records).not_to include("192.0.2.11")
   end
 
   it "explains missing pool addresses without showing a placeholder SPF policy" do
